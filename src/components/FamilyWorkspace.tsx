@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useI18n } from "@/lib/i18n";
 import type { FamilyTreeData } from "@/lib/tree-data";
 import TreeCanvas from "./TreeCanvas";
 import PersonPanel, { type AddRelation } from "./PersonPanel";
@@ -19,7 +20,10 @@ export default function FamilyWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<"view" | "add">("view");
   const [addRelation, setAddRelation] = useState<AddRelation | null>(null);
+  const { t } = useI18n();
   const [toast, setToast] = useState("");
+  const [search, setSearch] = useState("");
+  const [focusId, setFocusId] = useState<string | null>(null);
   const isAdmin = myRole === "OWNER" || myRole === "ADMIN";
 
   const refresh = useCallback(async () => {
@@ -57,9 +61,44 @@ export default function FamilyWorkspace({
         isAdmin={isAdmin}
       />
 
+      {/* Search bar */}
+      <div className="z-20 flex items-center gap-2 border-b border-leaf-100 bg-white px-4 py-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={`🔎 ${t("tree_search")}`}
+          className="w-full max-w-xs rounded-full border border-leaf-200 px-4 py-1.5 text-sm outline-none focus:border-leaf-500 focus:ring-2 focus:ring-leaf-200"
+        />
+        {search.trim().length >= 1 && (
+          <div className="flex flex-wrap gap-1.5">
+            {data.persons
+              .filter((p) =>
+                `${p.firstName} ${p.lastName ?? ""}`.toLowerCase().includes(search.toLowerCase())
+              )
+              .slice(0, 6)
+              .map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setFocusId(p.id);
+                    setSearch("");
+                  }}
+                  className="rounded-full bg-leaf-100 px-3 py-1 text-xs font-bold text-leaf-800 hover:bg-leaf-200"
+                >
+                  {p.firstName} {p.lastName ?? ""}
+                </button>
+              ))}
+            {!data.persons.some(
+              (p) => `${p.firstName} ${p.lastName ?? ""}`.toLowerCase().includes(search.toLowerCase())
+            ) && <span className="text-xs text-bark-800/40">…</span>}
+          </div>
+        )}
+      </div>
+
       <TreeCanvas
         persons={data.persons}
         spouseLinks={data.spouseLinks}
+        focusPersonId={focusId}
         onSelect={(info) => {
           if (info.kind === "person") openView(info.id);
           else openAdd({ kind: "root" });
@@ -72,6 +111,7 @@ export default function FamilyWorkspace({
           person={selected}
           persons={data.persons}
           spouseLinks={data.spouseLinks}
+          familyId={data.family.id}
           me={me}
           canDelete={isAdmin}
           onClose={() => {

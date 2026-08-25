@@ -48,10 +48,12 @@ export default function TreeCanvas({
   persons,
   spouseLinks,
   onSelect,
+  focusPersonId,
 }: {
   persons: PersonDTO[];
   spouseLinks: SpouseLinkDTO[];
   onSelect: (info: SelectedInfo) => void;
+  focusPersonId?: string | null;
 }) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +90,20 @@ export default function TreeCanvas({
     fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persons.length]);
+
+  // center on a searched person
+  useEffect(() => {
+    if (!focusPersonId || !layout.width) return;
+    const card = layout.cards.find((c) => c.person.id === focusPersonId);
+    const el = containerRef.current;
+    if (!card || !el) return;
+    setScale((s) => Math.max(s, 0.9));
+    setOffset({
+      x: el.clientWidth / 2 - (card.x + 74),
+      y: el.clientHeight / 2 - (card.y + 32),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPersonId]);
 
   function startDrag(e: React.MouseEvent) {
     if (e.button !== 0) return;

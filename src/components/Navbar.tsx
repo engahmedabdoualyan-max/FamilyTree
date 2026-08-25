@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useI18n } from "@/lib/i18n";
+import NotifBell from "./NotifBell";
 
 export function TreeLogo({ size = 28 }: { size?: number }) {
   return (
@@ -54,6 +55,7 @@ export default function Navbar({
           </button>
           {user ? (
             <>
+              <NotifBell />
               <Link
                 href="/dashboard"
                 className="hidden rounded-lg px-3 py-1.5 text-sm font-semibold text-bark-800 hover:bg-leaf-50 sm:block"

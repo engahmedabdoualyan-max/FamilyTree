@@ -18,6 +18,7 @@ export type PersonDTO = {
   isRoot: boolean;
   fatherId: string | null;
   motherId: string | null;
+  linkedUserId?: string | null;
   commentCount: number;
 };
 
@@ -118,6 +119,7 @@ export async function getFamilyTreeData(familyId: string): Promise<FamilyTreeDat
     isRoot: p.isRoot,
     fatherId: p.fatherId,
     motherId: p.motherId,
+    linkedUserId: (p as { linkedUserId?: string | null }).linkedUserId ?? null,
     commentCount: p._count.comments,
   });
 

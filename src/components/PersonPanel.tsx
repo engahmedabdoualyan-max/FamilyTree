@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import type { PersonDTO, SpouseLinkDTO } from "@/lib/tree-data";
 import PersonForm, {
@@ -27,6 +27,7 @@ export type AddRelation =
 type Common = {
   persons: PersonDTO[];
   spouseLinks: SpouseLinkDTO[];
+  familyId: string;
   me: { id: string; name?: string | null; image?: string | null };
 };
 
@@ -72,6 +73,7 @@ function ViewPanel({
   person,
   persons,
   spouseLinks,
+  familyId: famId,
   canDelete,
   me,
   onClose,
@@ -87,6 +89,42 @@ function ViewPanel({
   const [error, setError] = useState("");
 
   const byId = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons]);
+
+  // "This is me" + relation path
+  const isMe = person.linkedUserId === me.id;
+  const [myPersonId, setMyPersonId] = useState<string | null>(null);
+  const [relPath, setRelPath] = useState<{ personId: string; name: string; via: string }[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/families/${famId}/set-me`);
+      if (!cancelled && res.ok) {
+        const data = await res.json();
+        setMyPersonId(data.myPersonId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [famId]);
+
+  async function toggleMe() {
+    const next = isMe ? null : person.id;
+    await fetch(`/api/families/${famId}/set-me`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personId: next }),
+    });
+    setMyPersonId(next);
+    onChanged();
+  }
+
+  async function loadRelation() {
+    if (!myPersonId) return;
+    const res = await fetch(`/api/persons/${person.id}/relation?familyId=${famId}&from=${myPersonId}`);
+    if (res.ok) setRelPath((await res.json()).path);
+  }
 
   const spouseIds = useMemo(() => {
     const out: string[] = [];
@@ -227,6 +265,42 @@ function ViewPanel({
                 </button>
               </p>
             )}
+            {/* Social: this is me + relation */}
+            {!person.familyName && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl bg-sky-50/70 p-2.5 ring-1 ring-sky-100">
+                <button
+                  onClick={toggleMe}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    isMe ? "bg-sky-500 text-white" : "bg-white text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100"
+                  }`}
+                >
+                  {isMe ? t("isMe") : t("thisIsMe")}
+                </button>
+                {myPersonId && myPersonId !== person.id && (
+                  <button
+                    onClick={() => setRelPath(relPath === null ? ((loadRelation() as unknown) as null) ?? null : null)}
+                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-leaf-700 ring-1 ring-leaf-200 hover:bg-leaf-50"
+                  >
+                    🧬 {t("relation_btn")}
+                  </button>
+                )}
+                {relPath && relPath.length > 0 && (
+                  <div className="w-full pt-1.5">
+                    <p className="text-[11px] font-bold uppercase text-bark-800/45">{t("relation_title")}:</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs">
+                      {relPath.map((step, i) => (
+                        <span key={step.personId} className="flex items-center gap-1">
+                          <b className="text-bark-900">{i === 0 ? `${t("hello_user")} — ${step.name}` : step.name}</b>
+                          {i > 0 && <span className="italic text-amber-700">({step.via})</span>}
+                          {i < relPath.length - 1 && <span className="text-bark-800/30">←</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {person.bio && (
               <div>
                 <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-bark-800/50">

@@ -26,6 +26,8 @@ model User {
   occasionsCreated Occasion[] @relation("OccasionCreator")
   mediaComments MediaComment[]
   mediaLikes    MediaLike[]
+  notifications Notification[]
+  linkedPersons Person[]     @relation("LinkedPerson")
 }
 
 model Account {
@@ -121,6 +123,9 @@ model Person {
   spouseLinksB SpouseLink[] @relation("SpouseB")
   comments    Comment[]
   mediaTags   PersonTag[]
+  linkedUserId String?
+  linkedUser  User?       @relation("LinkedPerson", fields: [linkedUserId], references: [id])
+  invites     OccasionInvite[]
 
   @@index([familyId])
   @@index([fatherId])
@@ -226,6 +231,7 @@ model Occasion {
   family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
   createdBy   User     @relation("OccasionCreator", fields: [createdById], references: [id])
   albums      Album[]
+  invites     OccasionInvite[]
 
   @@index([familyId, date])
 }
@@ -251,4 +257,29 @@ model MediaLike {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([mediaId, userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  text      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model OccasionInvite {
+  id         String   @id @default(cuid())
+  occasionId String
+  personId   String
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  occasion   Occasion @relation(fields: [occasionId], references: [id], onDelete: Cascade)
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([occasionId, personId])
 }

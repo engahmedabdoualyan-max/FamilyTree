@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMembership } from "@/lib/family";
+import { notify } from "@/lib/notify";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -39,5 +40,13 @@ export async function POST(req: Request, ctx: Ctx) {
     data: { mediaId: g.media.id, userId: g.userId, text },
     include: { user: { select: { id: true, name: true, image: true } } },
   });
+  if (g.media.uploadedById !== g.userId) {
+    notify(
+      g.media.uploadedById,
+      "COMMENT",
+      `${comment.user.name ?? "أحد الأقارب"} علّق على «${g.media.title ?? "صورة"}»`,
+      `/family/${g.media.familyId}/gallery`
+    );
+  }
   return NextResponse.json({ comment }, { status: 201 });
 }

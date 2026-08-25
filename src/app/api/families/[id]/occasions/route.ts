@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMembership } from "@/lib/family";
+import { notifyFamily } from "@/lib/notify";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -25,12 +26,28 @@ export async function GET(_req: Request, ctx: Ctx) {
   const membership = await getMembership(id, userId);
   if (!membership) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
+  const mePerson = await prisma.person.findFirst({
+    where: { familyId: id, linkedUserId: userId },
+    select: { id: true },
+  });
+
   const occasions = await prisma.occasion.findMany({
     where: { familyId: id },
-    include: { _count: { select: { albums: true } } },
+    include: {
+      _count: { select: { albums: true, invites: true } },
+      invites: { where: { person: { linkedUserId: userId } }, select: { id: true, status: true } },
+    },
     orderBy: { date: "asc" },
   });
-  return NextResponse.json({ occasions });
+  return NextResponse.json({
+    myPersonId: mePerson?.id ?? null,
+    occasions: occasions.map((o) => ({
+      ...o,
+      inviteCount: o._count.invites,
+      albumCount: o._count.albums,
+      myInvite: o.invites[0] ?? null,
+    })),
+  });
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -63,5 +80,12 @@ export async function POST(req: Request, ctx: Ctx) {
       createdById: userId,
     },
   });
+  notifyFamily(
+    id,
+    userId,
+    "OCCASION",
+    `مناسبة جديدة: ${occasion.title} 🎉 (${occasion.date})`,
+    `/family/${id}/occasions`
+  );
   return NextResponse.json({ occasion }, { status: 201 });
 }
