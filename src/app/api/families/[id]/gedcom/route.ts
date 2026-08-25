@@ -118,7 +118,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   return new Response(content, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Content-Disposition": `attachment; filename="shajaratna-${esc(family?.name ?? id)}.ged"`,
+      "Content-Disposition": `attachment; filename="shajaratna-${id}.ged"`,
     },
   });
 }
