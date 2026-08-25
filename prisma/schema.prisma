@@ -34,6 +34,11 @@ model User {
   directMessagesSent DirectMessage[] @relation("DMSender")
   directMessagesReceived DirectMessage[] @relation("DMReceiver")
   familiesApproving Family[] @relation("FamilyApprover")
+  riddlesCreated    Riddle[] @relation("RiddleCreator")
+  riddlesSolved     Riddle[] @relation("RiddleSolver")
+  pointLogs         PointLog[]
+  listingsCreated   Listing[] @relation("ListingCreator")
+  listingClaims     ListingClaim[]
 }
 
 model Account {
@@ -88,6 +93,9 @@ model Family {
   albums       Album[]
   media        MediaAsset[]
   occasions    Occasion[]
+  riddles      Riddle[]
+  pointLogs    PointLog[]
+  listings     Listing[]
 }
 
 model Membership {
@@ -95,6 +103,7 @@ model Membership {
   userId    String
   familyId  String
   role      String   @default("MEMBER")
+  points    Int      @default(0)
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
@@ -318,4 +327,66 @@ model DirectMessage {
 
   @@index([senderId, receiverId])
   @@index([receiverId, senderId])
+}
+
+model Riddle {
+  id          String    @id @default(cuid())
+  familyId    String
+  question    String
+  answer      String
+  reward      Int       @default(10)
+  solvedById  String?
+  solvedAt    DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  family      Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation("RiddleCreator", fields: [createdById], references: [id])
+  solvedBy    User?     @relation("RiddleSolver", fields: [solvedById], references: [id])
+
+  @@index([familyId, solvedById])
+}
+
+model PointLog {
+  id        String   @id @default(cuid())
+  familyId  String
+  userId    String
+  points    Int
+  reason    String
+  refId     String?
+  createdAt DateTime @default(now())
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId, userId, createdAt])
+}
+
+model Listing {
+  id          String          @id @default(cuid())
+  familyId    String
+  kind        String          @default("SELL") // SELL | GIFT
+  title       String
+  description String?
+  price       Int?
+  photo       String?
+  status      String          @default("AVAILABLE") // AVAILABLE | CLAIMED | DONE
+  claimedById String?
+  createdById String
+  createdAt   DateTime        @default(now())
+  family      Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  createdBy   User            @relation("ListingCreator", fields: [createdById], references: [id])
+  claims      ListingClaim[]
+
+  @@index([familyId, status])
+}
+
+model ListingClaim {
+  id        String   @id @default(cuid())
+  listingId String
+  userId    String
+  message   String?
+  createdAt DateTime @default(now())
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, userId])
 }
