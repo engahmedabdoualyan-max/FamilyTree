@@ -58,6 +58,49 @@ export async function GET(_req: Request, ctx: Ctx) {
     }),
   ]);
 
+  const statsPersons = await prisma.person.findMany({
+    where: { familyId: id, status: "APPROVED" },
+    select: {
+      gender: true,
+      isDeceased: true,
+      birthDate: true,
+      firstName: true,
+      lastName: true,
+    },
+  });
+  const males = statsPersons.filter((p) => p.gender === "MALE").length;
+  const females = statsPersons.filter((p) => p.gender === "FEMALE").length;
+  const deceased = statsPersons.filter((p) => p.isDeceased).length;
+  const withYear = statsPersons
+    .map((p) => ({ p, y: Number((p.birthDate ?? "").match(/(\d{4})/)?.[1] ?? 9999) }))
+    .filter((x) => x.y !== 9999)
+    .sort((a, b) => a.y - b.y);
+  const oldest = withYear[0]
+    ? `${withYear[0].p.firstName} ${withYear[0].p.lastName ?? ""} (${withYear[0].y})`
+    : null;
+  const nameCount = new Map<string, number>();
+  for (const p of statsPersons) {
+    if (!p.firstName) continue;
+    nameCount.set(p.firstName, (nameCount.get(p.firstName) ?? 0) + 1);
+  }
+  let topName: string | null = null;
+  let topN = 0;
+  for (const [n, c] of nameCount) {
+    if (c > topN) {
+      topN = c;
+      topName = n;
+    }
+  }
+
+  const stats = {
+    total: statsPersons.length,
+    males,
+    females,
+    deceased,
+    oldest,
+    topName: topName ? `${topName} ×${topN}` : null,
+  };
+
   const now = new Date();
   const thisMonth = now.getMonth() + 1;
   const birthdays = allPersons
@@ -66,6 +109,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     .sort((a, b) => a.day - b.day);
 
   return NextResponse.json({
+    stats,
     media: media.map((m) => ({
       id: m.id,
       fileData: m.fileData,

@@ -14,6 +14,7 @@ export type PersonDTO = {
   birthPlace: string | null;
   occupation: string | null;
   bio: string | null;
+  source?: string | null;
   isDeceased: boolean;
   isRoot: boolean;
   fatherId: string | null;
@@ -119,6 +120,7 @@ export async function getFamilyTreeData(familyId: string): Promise<FamilyTreeDat
     birthPlace: p.birthPlace,
     occupation: p.occupation,
     bio: p.bio,
+    source: (p as { source?: string | null }).source ?? null,
     isDeceased: p.isDeceased,
     isRoot: p.isRoot,
     fatherId: p.fatherId,

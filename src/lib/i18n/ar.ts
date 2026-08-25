@@ -294,6 +294,15 @@ const ar: Dict = {
   status_done: "اتسلمت ✓",
   filter_all: "الكل",
 
+  issues_title: "فحص البيانات",
+  timeline_tab: "الخط الزمني",
+  add_event: "+ حدث جديد",
+  event_year: "سنة",
+  event_title_field: "الحدث",
+  event_place: "المكان",
+
+  source_field: "مصدر المعلومة",
+
   loading: "جاري التحميل…",
   error_generic: "حصل خطأ، حاول تاني",
   error_required: "املأ الخانات المطلوبة",

@@ -5,6 +5,7 @@ import type { PersonDTO } from "@/lib/tree-data";
 import PhotoInput from "./PhotoInput";
 
 export type PersonFormValues = {
+  source: string;
   firstName: string;
   lastName: string;
   nickname: string;
@@ -20,6 +21,7 @@ export type PersonFormValues = {
 
 export function emptyForm(gender: PersonFormValues["gender"] = "MALE"): PersonFormValues {
   return {
+    source: "",
     firstName: "",
     lastName: "",
     nickname: "",
@@ -36,6 +38,7 @@ export function emptyForm(gender: PersonFormValues["gender"] = "MALE"): PersonFo
 
 export function personToForm(p: PersonDTO): PersonFormValues {
   return {
+    source: (p as { source?: string | null }).source ?? "",
     firstName: p.firstName ?? "",
     lastName: p.lastName ?? "",
     nickname: p.nickname ?? "",
@@ -196,6 +199,17 @@ export default function PersonForm({
           rows={3}
           maxLength={2000}
           className={`${inputCls} resize-none`}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-bold text-bark-800">📚 {t("source_field")}</label>
+        <input
+          value={values.source}
+          onChange={(e) => set("source", e.target.value)}
+          placeholder="مثلاً: من جدتي أم سعاد"
+          maxLength={300}
+          className={inputCls}
         />
       </div>
 

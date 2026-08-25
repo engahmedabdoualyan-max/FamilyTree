@@ -10,6 +10,7 @@ import PersonForm, {
 } from "./PersonForm";
 import CommentsSection from "./CommentsSection";
 import MediaThumbs from "./MediaThumbs";
+import { Timeline, VoiceStories } from "./PersonExtras";
 import { Avatar } from "./TreeCanvas";
 
 export type AddRelation =
@@ -138,6 +139,23 @@ function ViewPanel({
   const father = person.fatherId ? byId.get(person.fatherId) : undefined;
   const mother = person.motherId ? byId.get(person.motherId) : undefined;
   const spouses = spouseIds.map((id) => byId.get(id)!).filter(Boolean);
+  const spouseStatuses = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const l of spouseLinks) {
+      if (l.aId === person.id) map[l.bId] = l.status;
+      else if (l.bId === person.id) map[l.aId] = l.status;
+    }
+    return map;
+  }, [spouseLinks, person.id]);
+
+  async function toggleDivorce(spouseId: string, status: string) {
+    await fetch(`/api/persons/${person.id}/spouse`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ spouseId, status }),
+    });
+    onChanged();
+  }
   const children = persons.filter((p) => p.fatherId === person.id || p.motherId === person.id);
 
   async function saveEdit(e: React.FormEvent) {
@@ -265,6 +283,14 @@ function ViewPanel({
                 </button>
               </p>
             )}
+            {/* Timeline */}
+            {!person.familyName && (
+              <Timeline personId={person.id} birthDate={person.birthDate} deathDate={person.deathDate} />
+            )}
+
+            {/* Voice stories */}
+            {!person.familyName && <VoiceStories personId={person.id} meId={me.id} />}
+
             {/* Social: this is me + relation */}
             {!person.familyName && (
               <div className="flex flex-wrap items-center gap-2 rounded-xl bg-sky-50/70 p-2.5 ring-1 ring-sky-100">
@@ -340,27 +366,42 @@ function ViewPanel({
                   }
                 />
 
-                {spouses.map((s) => (
+                {spouses.map((s) => {
+                  const divorced = spouseStatuses[s.id] === "DIVORCED";
+                  return (
                   <div
                     key={s.id}
-                    className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-leaf-100"
+                    className={`flex items-center gap-2 rounded-xl px-3 py-2 ring-1 ${divorced ? "bg-gray-50 ring-gray-200" : "bg-white ring-leaf-100"}`}
                   >
-                    <span className="flex-1 truncate">💍 {fullName(s)}</span>
+                    <span className="flex-1 truncate">{divorced ? "💔" : "💍"} {fullName(s)}</span>
+                    {s.familyName && (
+                      <span className="text-[11px] italic text-amber-700">{s.familyName}</span>
+                    )}
                     {s.familyName && (
                       <span className="text-[11px] italic text-amber-700">{s.familyName}</span>
                     )}
                     {!person.familyName && (
-                      <button
-                        onClick={() => unlinkSpouse(s.id)}
-                        title={t("remove")}
-                        className="text-xs text-red-400 hover:text-red-600 hover:underline"
-                      >
-                        ✕
-                      </button>
+                      <>
+                        <button
+                          onClick={() => toggleDivorce(s.id, divorced ? "MARRIED" : "DIVORCED")}
+                          title={divorced ? t("rsvp_going") : "طلاق"}
+                          className="text-xs opacity-60 hover:opacity-100"
+                        >
+                          {divorced ? "💞" : "💔"}
+                        </button>
+                        <button
+                          onClick={() => unlinkSpouse(s.id)}
+                          title={t("remove")}
+                          className="text-xs text-red-400 hover:text-red-600 hover:underline"
+                        >
+                          ✕
+                        </button>
+                      </>
                     )}
                   </div>
-                ))}
-                {!spouses.length && !person.familyName && (
+                  );
+                })}
+                {!person.familyName && (
                   <button
                     onClick={() => onAddRelation({ kind: "spouse", personId: person.id })}
                     className="w-full rounded-xl border-2 border-dashed border-leaf-200 py-2.5 text-sm font-bold text-leaf-700 transition hover:border-leaf-400 hover:bg-leaf-50"

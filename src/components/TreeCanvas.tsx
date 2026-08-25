@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { toPng } from "html-to-image";
+import jsPDF from "jspdf";
 import { useI18n } from "@/lib/i18n";
 import type { PersonDTO, SpouseLinkDTO } from "@/lib/tree-data";
 import { fullName, layoutTree } from "@/lib/tree-layout";
+import { computeIssues } from "@/lib/tree-issues";
 
 export type SelectedInfo =
   | { kind: "person"; id: string }
@@ -57,6 +60,7 @@ export default function TreeCanvas({
 }) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 40, y: 40 });
   const [dragging, setDragging] = useState(false);
@@ -105,6 +109,31 @@ export default function TreeCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusPersonId]);
 
+  async function exportImage(asPdf = false) {
+    const inner = innerRef.current;
+    if (!inner) return;
+    const prevTransform = inner.style.transform;
+    inner.style.transform = "none";
+    try {
+      const dataUrl = await toPng(inner, { backgroundColor: "#f7faf7", pixelRatio: 2 });
+      if (asPdf) {
+        const img = new window.Image();
+        img.src = dataUrl;
+        await new Promise((r) => (img.onload = r));
+        const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [img.width, img.height] });
+        pdf.addImage(dataUrl, "PNG", 0, 0, img.width, img.height);
+        pdf.save("family-tree.pdf");
+      } else {
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = "family-tree.png";
+        a.click();
+      }
+    } finally {
+      inner.style.transform = prevTransform;
+    }
+  }
+
   function startDrag(e: React.MouseEvent) {
     if (e.button !== 0) return;
     setDragging(true);
@@ -145,6 +174,9 @@ export default function TreeCanvas({
     return () => el?.removeEventListener("wheel", onWheel);
   }, []);
 
+  const issues = useMemo(() => computeIssues(persons), [persons]);
+  const [issuesOpen, setIssuesOpen] = useState(false);
+
   const parentIds = useMemo(() => {
     const s = new Set<string>();
     for (const p of persons) {
@@ -184,6 +216,7 @@ export default function TreeCanvas({
       onMouseLeave={endDrag}
     >
       <div
+        ref={innerRef}
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: "0 0",
@@ -300,6 +333,8 @@ export default function TreeCanvas({
 
       {/* Toolbar */}
       <div className="absolute bottom-4 start-4 z-20 flex items-center gap-1.5 rounded-xl border border-leaf-100 bg-white/95 p-1.5 shadow-lg backdrop-blur">
+        <ToolBtn label="Export PNG" onClick={() => exportImage()}>📷</ToolBtn>
+        <ToolBtn label="Export PDF" onClick={() => exportImage(true)}>📄</ToolBtn>
         <ToolBtn label={t("tree_zoomIn")} onClick={() => setScale((s) => Math.min(1.6, s * 1.15))}>
           ＋
         </ToolBtn>
@@ -310,6 +345,24 @@ export default function TreeCanvas({
           ⟳
         </ToolBtn>
         <ToolBtn label={t("tree_fit")} onClick={fit}>⛶</ToolBtn>
+        {issues.length > 0 && (
+          <div className="relative">
+            <ToolBtn label={t("issues_title")} onClick={() => setIssuesOpen(!issuesOpen)}>⚠️</ToolBtn>
+            <span className="pointer-events-none absolute -top-1 -end-1 rounded-full bg-red-500 px-1 text-[9px] font-black text-white">
+              {issues.length}
+            </span>
+            {issuesOpen && (
+              <div className="scroll-thin absolute bottom-11 start-0 z-30 max-h-64 w-72 overflow-y-auto rounded-xl border border-leaf-100 bg-white p-3 text-xs shadow-xl">
+                <p className="mb-2 font-extrabold text-bark-900">⚠️ {t("issues_title")}</p>
+                {issues.map((iss, i) => (
+                  <p key={i} className="border-b border-leaf-50 py-1.5 leading-relaxed last:border-0 text-bark-800">
+                    {iss}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="mx-1 h-5 w-px bg-leaf-100" />
         <ToolBtn
           label={t("tree_expandAll")}

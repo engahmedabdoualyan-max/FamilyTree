@@ -292,6 +292,15 @@ const en = {
   status_done: "Delivered ✓",
   filter_all: "All",
 
+  issues_title: "Data check",
+  timeline_tab: "Timeline",
+  add_event: "+ Add event",
+  event_year: "Year",
+  event_title_field: "Event",
+  event_place: "Place",
+
+  source_field: "Information source",
+
   loading: "Loading…",
   error_generic: "Something went wrong",
   error_required: "Please fill the required fields",

@@ -1,0 +1,15 @@
+{
+  "name": "Shajaratna — شجرتنا",
+  "short_name": "شجرتنا",
+  "description": "شجرة العيلة والذكريات في مكان واحد",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f7faf7",
+  "theme_color": "#1f6445",
+  "dir": "auto",
+  "lang": "ar",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

@@ -39,6 +39,7 @@ model User {
   pointLogs         PointLog[]
   listingsCreated   Listing[] @relation("ListingCreator")
   listingClaims     ListingClaim[]
+  voicesRecorded    PersonVoice[] @relation("VoiceRecorder")
 }
 
 model Account {
@@ -124,6 +125,7 @@ model Person {
   birthPlace  String?
   occupation  String?
   bio         String?
+  source      String?
   isDeceased  Boolean  @default(false)
   isRoot      Boolean  @default(false)
   fatherId    String?
@@ -141,6 +143,8 @@ model Person {
   spouseLinksB SpouseLink[] @relation("SpouseB")
   comments    Comment[]
   mediaTags   PersonTag[]
+  lifeEvents  LifeEvent[]
+  voices      PersonVoice[]
   linkedUserId String?
   status      String      @default("APPROVED")
   linkedUser  User?       @relation("LinkedPerson", fields: [linkedUserId], references: [id])
@@ -389,4 +393,30 @@ model ListingClaim {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([listingId, userId])
+}
+
+model LifeEvent {
+  id        String   @id @default(cuid())
+  personId  String
+  year      String?
+  title     String
+  place     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+}
+
+model PersonVoice {
+  id          String   @id @default(cuid())
+  personId    String
+  dataUrl     String
+  durationSec Int      @default(0)
+  createdById String
+  createdAt   DateTime @default(now())
+  person      Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  recordedBy  User     @relation("VoiceRecorder", fields: [createdById], references: [id])
+
+  @@index([personId])
 }

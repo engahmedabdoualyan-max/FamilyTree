@@ -54,6 +54,32 @@ export async function POST(req: Request, ctx: Ctx) {
   return NextResponse.json({ link }, { status: 201 });
 }
 
+// PATCH change marriage status: { spouseId, status: MARRIED | DIVORCED }
+export async function PATCH(req: Request, ctx: Ctx) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  const { id } = await ctx.params;
+
+  const person = await prisma.person.findUnique({ where: { id } });
+  if (!person) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+  if (!(await getMembership(person.familyId, userId)))
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  const spouseId = typeof body?.spouseId === "string" ? body.spouseId : null;
+  const status = String(body?.status ?? "").toUpperCase();
+  if (!spouseId || !["MARRIED", "DIVORCED"].includes(status))
+    return NextResponse.json({ error: "INVALID" }, { status: 400 });
+
+  const [aId, bId] = [id, spouseId].sort();
+  const link = await prisma.spouseLink.findUnique({ where: { aId_bId: { aId, bId } } });
+  if (!link) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+
+  await prisma.spouseLink.update({ where: { id: link.id }, data: { status } });
+  return NextResponse.json({ ok: true });
+}
+
 // Unlink spouses
 export async function DELETE(req: Request, ctx: Ctx) {
   const session = await auth();

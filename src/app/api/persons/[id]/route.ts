@@ -48,6 +48,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if ("birthPlace" in body) data.birthPlace = str(body.birthPlace, 120);
   if ("occupation" in body) data.occupation = str(body.occupation, 120);
   if ("bio" in body) data.bio = str(body.bio, 2000);
+  if ("source" in body) data.source = str(body.source, 300);
   if ("isDeceased" in body) data.isDeceased = Boolean(body.isDeceased);
   if ("isRoot" in body) data.isRoot = Boolean(body.isRoot);
 

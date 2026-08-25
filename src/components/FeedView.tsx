@@ -3,7 +3,17 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 
+type Stats = {
+  total: number;
+  males: number;
+  females: number;
+  deceased: number;
+  oldest: string | null;
+  topName: string | null;
+};
+
 type FeedData = {
+  stats?: Stats;
   media: {
     id: string;
     fileData: string;
@@ -48,6 +58,38 @@ export default function FeedView({ familyId }: { familyId: string }) {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 scroll-thin">
+      {/* Stats */}
+      {data.stats && (
+        <section className="mb-7 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
+          {[
+            { v: data.stats.total, l: t("persons"), icon: "🌳" },
+            { v: data.stats.males, l: t("male"), icon: "👨" },
+            { v: data.stats.females, l: t("female"), icon: "👩" },
+            { v: data.stats.deceased, l: t("deceased"), icon: "🕊️" },
+          ].map((c) => (
+            <div key={c.l} className="rounded-2xl bg-white p-3 text-center shadow-sm ring-1 ring-leaf-100">
+              <div className="text-xl">{c.icon}</div>
+              <div className="text-lg font-black text-bark-900">{c.v}</div>
+              <div className="text-[10px] font-bold text-bark-800/50">{c.l}</div>
+            </div>
+          ))}
+          {data.stats.oldest && (
+            <div className="rounded-2xl bg-white p-3 text-center shadow-sm ring-1 ring-amber-200">
+              <div className="text-xl">🕰️</div>
+              <div className="truncate text-[11px] font-bold text-bark-900">{data.stats.oldest}</div>
+              <div className="text-[10px] font-bold text-bark-800/50">الأقدم</div>
+            </div>
+          )}
+          {data.stats.topName && (
+            <div className="rounded-2xl bg-white p-3 text-center shadow-sm ring-1 ring-sky-200">
+              <div className="text-xl">⭐</div>
+              <div className="truncate text-[11px] font-bold text-bark-900">{data.stats.topName}</div>
+              <div className="text-[10px] font-bold text-bark-800/50">أشهر اسم</div>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Birthdays */}
       <Section title={`🎂 ${t("birthdays_month")}`}>
         {data.birthdays.length === 0 ? (
