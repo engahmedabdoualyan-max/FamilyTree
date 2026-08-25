@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 
-export type FamilyTab = "tree" | "photos" | "docs" | "chat";
+export type FamilyTab = "tree" | "photos" | "docs" | "occasions" | "chat";
 
 export default function FamilyPageHeader({
   familyId,
@@ -45,6 +45,7 @@ export default function FamilyPageHeader({
     { key: "tree", href: `/family/${familyId}`, label: t("tab_tree"), icon: "🌳" },
     { key: "photos", href: `/family/${familyId}/gallery`, label: t("tab_photos"), icon: "📸" },
     { key: "docs", href: `/family/${familyId}/documents`, label: t("tab_docs"), icon: "📜" },
+    { key: "occasions", href: `/family/${familyId}/occasions`, label: t("tab_occasions"), icon: "🎉" },
     { key: "chat", href: `/family/${familyId}/chat`, label: t("tab_chat"), icon: "💬" },
   ];
 

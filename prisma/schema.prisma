@@ -23,6 +23,9 @@ model User {
   chatMessages  ChatMessage[]
   albumsCreated Album[]      @relation("AlbumCreator")
   mediaUploaded MediaAsset[] @relation("MediaUploader")
+  occasionsCreated Occasion[] @relation("OccasionCreator")
+  mediaComments MediaComment[]
+  mediaLikes    MediaLike[]
 }
 
 model Account {
@@ -73,6 +76,7 @@ model Family {
   chatMessages ChatMessage[]
   albums       Album[]
   media        MediaAsset[]
+  occasions    Occasion[]
 }
 
 model Membership {
@@ -162,6 +166,7 @@ model ChatMessage {
 model Album {
   id          String       @id @default(cuid())
   familyId    String
+  occasionId  String?
   title       String
   description String?
   createdById String
@@ -169,6 +174,7 @@ model Album {
   family      Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   createdBy   User         @relation("AlbumCreator", fields: [createdById], references: [id])
   media       MediaAsset[]
+  occasion    Occasion?    @relation(fields: [occasionId], references: [id], onDelete: SetNull)
 
   @@index([familyId])
 }
@@ -189,6 +195,8 @@ model MediaAsset {
   album       Album?      @relation(fields: [albumId], references: [id], onDelete: SetNull)
   uploadedBy  User        @relation("MediaUploader", fields: [uploadedById], references: [id])
   personTags  PersonTag[]
+  comments    MediaComment[]
+  likes       MediaLike[]
 
   @@index([familyId])
   @@index([albumId])
@@ -204,4 +212,43 @@ model PersonTag {
 
   @@unique([mediaId, personId])
   @@index([personId])
+}
+
+model Occasion {
+  id          String   @id @default(cuid())
+  familyId    String
+  title       String
+  type        String   @default("OTHER")
+  date        String
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("OccasionCreator", fields: [createdById], references: [id])
+  albums      Album[]
+
+  @@index([familyId, date])
+}
+
+model MediaComment {
+  id        String     @id @default(cuid())
+  mediaId   String
+  userId    String
+  text      String
+  createdAt DateTime   @default(now())
+  media     MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([mediaId])
+}
+
+model MediaLike {
+  id        String     @id @default(cuid())
+  mediaId   String
+  userId    String
+  createdAt DateTime   @default(now())
+  media     MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, userId])
 }

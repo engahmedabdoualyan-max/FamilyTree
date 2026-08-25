@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import type { PersonDTO } from "@/lib/tree-data";
-import { prepareUpload } from "@/lib/upload-client";
+import UploadModal from "./UploadModal";
 
 type Album = {
   id: string;
@@ -24,6 +24,9 @@ type Media = {
   uploadedById: string;
   createdAt: string;
   personIds: string[];
+  likesCount?: number;
+  commentsCount?: number;
+  likedByMe?: boolean;
 };
 
 export default function GalleryView({
@@ -44,12 +47,10 @@ export default function GalleryView({
   const [media, setMedia] = useState<Media[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [uploading, setUploading] = useState(0);
-  const [lightbox, setLightbox] = useState<Media | null>(null);
-  const [error, setError] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
-
+    const [lightbox, setLightbox] = useState<Media | null>(null);
+    
   const loadAlbums = useCallback(async () => {
     const res = await fetch(`/api/families/${familyId}/albums`);
     if (res.ok) setAlbums((await res.json()).albums);
@@ -101,39 +102,6 @@ export default function GalleryView({
     loadAlbums();
   }
 
-  async function upload(files: FileList | null) {
-    if (!files?.length || !openAlbumId) return;
-    setError("");
-    for (const file of Array.from(files).slice(0, 20)) {
-      setUploading((n) => n + 1);
-      try {
-        const prepared = await prepareUpload(file, "PHOTO");
-        const res = await fetch(`/api/families/${familyId}/media`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            kind: "PHOTO",
-            albumId: openAlbumId,
-            fileData: prepared.dataUrl,
-            title: prepared.name.replace(/\.[^.]+$/, "").slice(0, 100),
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error === "FILE_TOO_LARGE" ? t("errFileTooLarge") : t("error_generic"));
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "";
-        setError(msg === "UNSUPPORTED_TYPE" ? t("errUnsupported") : t("errFileTooLarge"));
-      } finally {
-        setUploading((n) => n - 1);
-      }
-    }
-    if (fileRef.current) fileRef.current.value = "";
-    loadMedia(openAlbumId);
-    loadAlbums();
-  }
-
   async function saveLightbox() {
     if (!lightbox) return;
     await fetch(`/api/media/${lightbox.id}`, {
@@ -169,29 +137,19 @@ export default function GalleryView({
           <span className="text-xs font-semibold text-bark-800/50">
             {openAlbum.mediaCount} 📸
           </span>
-          {(isAdmin || true) && (
-            <>
-              <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => upload(e.target.files)} />
-              <button
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading > 0}
-                className="ms-auto rounded-lg bg-leaf-600 px-4 py-2 text-sm font-bold text-white hover:bg-leaf-700 disabled:opacity-60"
-              >
-                {uploading > 0 ? `⏳ ${t("uploading")} (${uploading})` : `+ ${t("uploadPhotos")}`}
-              </button>
-              {(isAdmin || openAlbum) && (
-                <button
-                  onClick={() => deleteAlbum(openAlbum.id)}
-                  className="rounded-lg px-3 py-2 text-sm font-bold text-red-500 hover:bg-red-50"
-                >
-                  🗑
-                </button>
-              )}
-            </>
-          )}
+          <button
+            onClick={() => setUploadOpen(true)}
+            className="ms-auto rounded-lg bg-leaf-600 px-4 py-2 text-sm font-bold text-white hover:bg-leaf-700"
+          >
+            📤 {t("uploadPhotos")}
+          </button>
+          <button
+            onClick={() => deleteAlbum(openAlbum.id)}
+            className="rounded-lg px-3 py-2 text-sm font-bold text-red-500 hover:bg-red-50"
+          >
+            🗑
+          </button>
         </div>
-        {error && <p className="mb-3 text-sm font-semibold text-red-600">{error}</p>}
-
         {media.length === 0 ? (
           <EmptyHint />
         ) : (
@@ -212,6 +170,18 @@ export default function GalleryView({
               </button>
             ))}
           </div>
+        )}
+
+        {uploadOpen && (
+          <UploadModal
+            familyId={familyId}
+            albumId={openAlbumId}
+            onClose={() => setUploadOpen(false)}
+            onUploaded={() => {
+              loadMedia(openAlbumId);
+              loadAlbums();
+            }}
+          />
         )}
 
         {lightbox && (
@@ -261,6 +231,8 @@ export default function GalleryView({
                   );
                 })}
               </div>
+
+              <MediaSocial media={lightbox} />
 
               <div className="mt-4 flex items-center gap-2">
                 <button onClick={saveLightbox} className="flex-1 rounded-lg bg-leaf-600 py-2.5 font-bold text-white hover:bg-leaf-700">
@@ -339,6 +311,139 @@ function EmptyHint() {
     <div className="rounded-2xl border-2 border-dashed border-leaf-200 bg-white/60 p-12 text-center">
       <div className="text-4xl">🖼️</div>
       <p className="mt-3 font-semibold text-bark-800">{t("noMediaYet")}</p>
+    </div>
+  );
+}
+
+
+type MComment = {
+  id: string;
+  text: string;
+  createdAt: string;
+  user: { id: string; name: string | null; image: string | null };
+};
+
+function MediaSocial({ media }: { media: Media }) {
+  const { t } = useI18n();
+  const [likes, setLikes] = useState(media.likesCount ?? 0);
+  const [likedByMe, setLikedByMe] = useState(!!media.likedByMe);
+  const [comments, setComments] = useState<MComment[] | null>(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/media/${media.id}/comments`);
+      if (!cancelled && res.ok) setComments((await res.json()).comments);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [media.id]);
+
+  async function toggleLike() {
+    setLikes((n) => n + (likedByMe ? -1 : 1));
+    setLikedByMe(!likedByMe);
+    await fetch(`/api/media/${media.id}/like`, { method: "POST" });
+  }
+
+  async function sendComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setBusy(true);
+    const res = await fetch(`/api/media/${media.id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    setBusy(false);
+    if (res.ok) {
+      const { comment } = await res.json();
+      setComments((c) => [...(c ?? []), comment]);
+      setText("");
+    }
+  }
+
+  async function share() {
+    const shareData = {
+      title: media.title || t("photos_title"),
+      text: (media.caption || media.title || "") + " — " + t("appName"),
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+      } catch {}
+    }
+  }
+
+  function download() {
+    const a = document.createElement("a");
+    a.href = media.fileData;
+    a.download = media.title || "photo.jpg";
+    a.click();
+  }
+
+  return (
+    <div className="mt-4 border-t border-leaf-100 pt-3">
+      {/* Actions row */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={toggleLike}
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition ${
+            likedByMe ? "bg-red-50 text-red-500 ring-1 ring-red-200" : "bg-gray-50 text-bark-800 ring-1 ring-gray-200 hover:bg-red-50"
+          }`}
+        >
+          {likedByMe ? "❤️" : "🤍"} {likes}
+        </button>
+        <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-600 ring-1 ring-sky-100">
+          💬 {comments?.length ?? media.commentsCount ?? 0}
+        </span>
+        <button onClick={share} className="ms-auto rounded-full bg-leaf-50 px-3 py-1.5 text-sm font-bold text-leaf-700 ring-1 ring-leaf-200 hover:bg-leaf-100">
+          ↗ {t("share_btn")}
+        </button>
+        <button onClick={download} className="rounded-full bg-leaf-50 px-3 py-1.5 text-sm font-bold text-leaf-700 ring-1 ring-leaf-200 hover:bg-leaf-100">
+          ⬇ {t("download_btn")}
+        </button>
+      </div>
+
+      {/* Comments */}
+      <div className="mt-3 space-y-2">
+        {comments === null ? (
+          <p className="text-xs text-bark-800/40">{t("loading")}</p>
+        ) : (
+          comments.map((c) => (
+            <div key={c.id} className="flex gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-leaf-200 text-[10px] font-bold text-leaf-800">
+                {(c.user.name ?? "?").slice(0, 1).toUpperCase()}
+              </span>
+              <p className="rounded-xl bg-leaf-50/70 px-3 py-1.5 text-xs leading-relaxed text-bark-900 ring-1 ring-leaf-100">
+                <b>{c.user.name}</b> {c.text}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+
+      <form onSubmit={sendComment} className="mt-2 flex gap-2">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={t("comment_placeholder")}
+          maxLength={1000}
+          className="flex-1 rounded-full border border-leaf-200 px-3.5 py-2 text-xs outline-none focus:border-leaf-500 focus:ring-2 focus:ring-leaf-200"
+        />
+        <button
+          disabled={busy || !text.trim()}
+          className="rounded-full bg-leaf-600 px-4 py-2 text-xs font-bold text-white hover:bg-leaf-700 disabled:opacity-50"
+        >
+          ➤
+        </button>
+      </form>
     </div>
   );
 }

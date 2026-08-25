@@ -17,7 +17,7 @@ const DOC_TYPES = [
   "OTHER",
 ];
 
-function mediaDTO(m: {
+type MediaRow = {
   id: string;
   familyId: string;
   albumId: string | null;
@@ -29,7 +29,11 @@ function mediaDTO(m: {
   uploadedById: string;
   createdAt: Date;
   personTags?: { personId: string }[];
-}) {
+  _count?: { likes: number; comments: number };
+  likes?: { userId: string }[];
+};
+
+function mediaDTO(m: MediaRow, meId?: string) {
   return {
     id: m.id,
     familyId: m.familyId,
@@ -42,6 +46,9 @@ function mediaDTO(m: {
     uploadedById: m.uploadedById,
     createdAt: m.createdAt,
     personIds: (m.personTags ?? []).map((t) => t.personId),
+    likesCount: m._count?.likes ?? m.likes?.length ?? 0,
+    commentsCount: m._count?.comments ?? 0,
+    likedByMe: meId ? (m.likes?.some((l) => l.userId === meId) ?? false) : false,
   };
 }
 
@@ -63,11 +70,15 @@ export async function GET(req: Request, ctx: Ctx) {
   if (personId) {
     const media = await prisma.mediaAsset.findMany({
       where: { familyId: id, personTags: { some: { personId } } },
-      include: { personTags: { select: { personId: true } } },
+      include: {
+        personTags: { select: { personId: true } },
+        _count: { select: { likes: true, comments: true } },
+        likes: { where: { userId }, select: { userId: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 500,
     });
-    return NextResponse.json({ media: media.map(mediaDTO) });
+    return NextResponse.json({ media: media.map((m) => mediaDTO(m, userId)) });
   }
 
   const media = await prisma.mediaAsset.findMany({
@@ -76,11 +87,15 @@ export async function GET(req: Request, ctx: Ctx) {
       ...(albumId ? { albumId } : {}),
       ...(kind === "DOC" || kind === "PHOTO" ? { kind } : {}),
     },
-    include: { personTags: { select: { personId: true } } },
+    include: {
+      personTags: { select: { personId: true } },
+      _count: { select: { likes: true, comments: true } },
+      likes: { where: { userId }, select: { userId: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: 500,
   });
-  return NextResponse.json({ media: media.map(mediaDTO) });
+  return NextResponse.json({ media: media.map((m) => mediaDTO(m, userId)) });
 }
 
 export async function POST(req: Request, ctx: Ctx) {
