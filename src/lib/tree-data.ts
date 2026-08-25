@@ -37,6 +37,8 @@ export type FamilyTreeData = {
     photo: string | null;
     inviteCode: string;
     createdById: string;
+    requireApproval?: boolean;
+    approverUserId?: string | null;
   };
   persons: PersonDTO[];
   spouseLinks: SpouseLinkDTO[];
@@ -66,12 +68,14 @@ export async function getFamilyTreeData(familyId: string): Promise<FamilyTreeDat
       photo: true,
       inviteCode: true,
       createdById: true,
+      requireApproval: true,
+      approverUserId: true,
     },
   });
   if (!family) return null;
 
   const persons = await prisma.person.findMany({
-    where: { familyId },
+    where: { familyId, status: "APPROVED" },
     include: {
       spouseLinksA: { select: { id: true, aId: true, bId: true, status: true } },
       spouseLinksB: { select: { id: true, aId: true, bId: true, status: true } },

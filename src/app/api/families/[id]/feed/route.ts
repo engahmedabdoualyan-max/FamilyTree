@@ -42,7 +42,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       take: 12,
     }),
     prisma.person.findMany({
-      where: { familyId: id },
+      where: { familyId: id, status: "APPROVED" },
       orderBy: { createdAt: "desc" },
       take: 6,
       select: { id: true, firstName: true, lastName: true, photo: true, createdAt: true },

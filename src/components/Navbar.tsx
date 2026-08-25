@@ -55,6 +55,8 @@ export default function Navbar({
           </button>
           {user ? (
             <>
+              <NavIconLink href="/friends" label="friends_page" icon="👥" />
+              <NavIconLink href="/messages" label="messages_page" icon="✉️" />
               <NotifBell />
               <Link
                 href="/dashboard"
@@ -114,5 +116,19 @@ export default function Navbar({
         </div>
       </div>
     </header>
+  );
+}
+
+
+function NavIconLink({ href, label, icon }: { href: string; label: string; icon: string }) {
+  const { t } = useI18n();
+  return (
+    <a
+      href={href}
+      title={t(label as "friends_page")}
+      className="flex h-9 w-9 items-center justify-center rounded-full text-lg hover:bg-leaf-50"
+    >
+      {icon}
+    </a>
   );
 }

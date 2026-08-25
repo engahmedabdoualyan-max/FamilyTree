@@ -28,6 +28,12 @@ model User {
   mediaLikes    MediaLike[]
   notifications Notification[]
   linkedPersons Person[]     @relation("LinkedPerson")
+  dndEnabled    Boolean      @default(false)
+  friendshipsRequested Friendship[] @relation("FriendRequester")
+  friendshipsReceived  Friendship[] @relation("FriendAddressee")
+  directMessagesSent DirectMessage[] @relation("DMSender")
+  directMessagesReceived DirectMessage[] @relation("DMReceiver")
+  familiesApproving Family[] @relation("FamilyApprover")
 }
 
 model Account {
@@ -70,6 +76,9 @@ model Family {
   description String?
   photo       String?
   inviteCode  String       @unique
+  requireApproval Boolean  @default(false)
+  approverUserId String?
+  approverUser User?       @relation("FamilyApprover", fields: [approverUserId], references: [id])
   createdAt   DateTime     @default(now())
   createdById String
   createdBy   User         @relation("FamilyCreator", fields: [createdById], references: [id])
@@ -124,6 +133,7 @@ model Person {
   comments    Comment[]
   mediaTags   PersonTag[]
   linkedUserId String?
+  status      String      @default("APPROVED")
   linkedUser  User?       @relation("LinkedPerson", fields: [linkedUserId], references: [id])
   invites     OccasionInvite[]
 
@@ -282,4 +292,30 @@ model OccasionInvite {
   person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@unique([occasionId, personId])
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      String   @default("PENDING") // PENDING ACCEPTED DECLINED
+  createdAt   DateTime @default(now())
+  requester   User     @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   User     @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+}
+
+model DirectMessage {
+  id        String    @id @default(cuid())
+  senderId  String
+  receiverId String
+  text      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  sender    User      @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User      @relation("DMReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, senderId])
 }

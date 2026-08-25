@@ -90,10 +90,21 @@ export async function POST(req: Request, ctx: Ctx) {
     }
   }
 
+  // Approval workflow: pending if family requires it and user is not staff
+  const family = await prisma.family.findUnique({
+    where: { id: familyId },
+    select: { requireApproval: true, approverUserId: true },
+  });
+  const isStaff =
+    ["OWNER", "ADMIN"].includes(membership.role) ||
+    (family?.approverUserId && family.approverUserId === userId);
+  const needsApproval = !!family?.requireApproval && !isStaff;
+
   const person = await prisma.person.create({
     data: {
       ...data,
       gender,
+      status: needsApproval ? "PENDING" : "APPROVED",
       familyId,
       createdById: userId,
       isRoot: Boolean(body.isRoot) && !fatherId && !motherId,
@@ -110,6 +121,28 @@ export async function POST(req: Request, ctx: Ctx) {
       update: {},
       create: { aId, bId },
     });
+  }
+
+  if (needsApproval) {
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    const { notify } = await import("@/lib/notify");
+    const targetApprover = family?.approverUserId ?? null;
+    if (targetApprover) {
+      notify(
+        targetApprover,
+        "APPROVAL",
+        `${me?.name ?? "أحد الأقارب"} أضاف «${person.firstName}» — يحتاج موافقتك`,
+        `/family/${familyId}`
+      );
+    } else {
+      const admins = await prisma.membership.findMany({
+        where: { familyId, role: { in: ["OWNER", "ADMIN"] }, userId: { not: userId } },
+        select: { userId: true },
+      });
+      for (const a of admins)
+        notify(a.userId, "APPROVAL", `إضافة جديدة تحتاج موافقتكم: «${person.firstName}»`, `/family/${familyId}`);
+    }
+    return NextResponse.json({ person: { ...person, status: "PENDING" }, pendingReview: true }, { status: 201 });
   }
 
   return NextResponse.json({ person }, { status: 201 });

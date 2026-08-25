@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
@@ -38,7 +38,70 @@ export default function FamilySettings({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState("");
+  const [requireApproval, setRequireApproval] = useState(
+    (family as { requireApproval?: boolean }).requireApproval ?? false
+  );
+  const [approver, setApprover] = useState((family as { approverUserId?: string | null }).approverUserId ?? "");
+  const [friendStates, setFriendStates] = useState<Record<string, { state: string; requestId?: string }>>({});
   const isAdmin = myRole === "OWNER" || myRole === "ADMIN";
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/friends");
+      if (!cancelled && res.ok) {
+        const d = await res.json();
+        const map: Record<string, { state: string; requestId?: string }> = {};
+      // typed map
+        type FS = { state: string; requestId?: string };
+        for (const f of d.friends as { id: string; requestId?: string }[]) map[f.id] = { state: "FRIENDS", requestId: f.requestId } as FS;
+        for (const r of d.incoming as { user: { id: string }; requestId?: string }[]) map[r.user.id] = { state: "INCOMING", requestId: r.requestId };
+        for (const r of d.outgoing as { user: { id: string }; requestId?: string }[]) map[r.user.id] = { state: "OUTGOING", requestId: r.requestId };
+        if (!cancelled) setFriendStates(map);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function addFriend(userId: string) {
+    const res = await fetch("/api/friends", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setFriendStates((prev) => ({
+        ...prev,
+        [userId]: d.status === "ACCEPTED" ? { state: "FRIENDS" } : { state: "OUTGOING" },
+      }));
+    }
+  }
+
+  async function respondFriend(requestId: string) {
+    await fetch(`/api/friends/${requestId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ACCEPTED" }),
+    });
+    setFriendStates((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) if (next[k].requestId === requestId) delete next[k];
+      return next;
+    });
+    router.refresh();
+  }
+
+  async function saveApproval(nextRequire: boolean, nextApprover: string) {
+    const res = await fetch(`/api/families/${family.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requireApproval: nextRequire, approverUserId: nextApprover || null }),
+    });
+    return res.ok;
+  }
 
   async function saveInfo(e: React.FormEvent) {
     e.preventDefault();
@@ -142,6 +205,44 @@ export default function FamilySettings({
         </div>
       </section>
 
+      {/* Tree protection */}
+      {isAdmin && (
+        <section className="rounded-2xl border border-leaf-100 bg-white p-5 shadow-sm">
+          <h2 className="font-extrabold text-bark-900">🛡️ {t("approval_mode")}</h2>
+          <label className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-bark-800">
+            <input
+              type="checkbox"
+              checked={requireApproval}
+              onChange={(e) => {
+                setRequireApproval(e.target.checked);
+                saveApproval(e.target.checked, approver);
+              }}
+              className="h-4 w-4 accent-[#257d53]"
+            />
+            🛡️ {t("approval_mode")}
+          </label>
+          <div className="mt-3 max-w-sm">
+            <label className="mb-1 block text-xs font-bold text-bark-800">{t("approver_select")}</label>
+            <select
+              value={approver}
+              onChange={(e) => {
+                setApprover(e.target.value);
+                saveApproval(requireApproval, e.target.value);
+              }}
+              disabled={!requireApproval}
+              className={inputCls}
+            >
+              <option value="">{t("none")}</option>
+              {members.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.name} ({t(m.role.toLowerCase() as "owner" | "admin" | "member")})
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+      )}
+
       {/* Members */}
       <section className="rounded-2xl border border-leaf-100 bg-white p-5 shadow-sm">
         <h2 className="font-extrabold text-bark-900">
@@ -175,6 +276,35 @@ export default function FamilySettings({
               >
                 {t(m.role.toLowerCase() as "owner" | "admin" | "member")}
               </span>
+              {(() => {
+                if (m.userId === me.id) return null;
+                const st = friendStates[m.userId];
+                if (!st)
+                  return (
+                    <button
+                      onClick={() => addFriend(m.userId)}
+                      className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-sky-700 ring-1 ring-sky-200 hover:bg-sky-100"
+                    >
+                      👥 {t("add_friend")}
+                    </button>
+                  );
+                if (st.state === "FRIENDS")
+                  return (
+                    <span className="text-xs font-bold text-green-600">👥 {t("already_friends")}</span>
+                  );
+                if (st.state === "OUTGOING")
+                  return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">⏳</span>;
+                if (st.state === "INCOMING" && st.requestId)
+                  return (
+                    <button
+                      onClick={() => respondFriend(st.requestId!)}
+                      className="rounded-lg bg-leaf-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-leaf-700"
+                    >
+                      {t("accept")}
+                    </button>
+                  );
+                return null;
+              })()}
               {myRole === "OWNER" && m.userId !== me.id && m.role !== "OWNER" && (
                 <div className="flex gap-1.5">
                   <button

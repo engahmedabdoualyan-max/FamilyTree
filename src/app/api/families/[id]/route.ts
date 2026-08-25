@@ -16,6 +16,26 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const body = await req.json().catch(() => null);
   const data: Record<string, string | null> = {};
+
+  // Approval settings (owner only)
+  if (body?.requireApproval !== undefined || body?.approverUserId !== undefined) {
+    const fam = await prisma.family.findUnique({ where: { id }, select: { createdById: true } });
+    if (!fam || fam.createdById !== userId)
+      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+  if (typeof body?.requireApproval === "boolean")
+    (data as Record<string, unknown>).requireApproval = body.requireApproval;
+  if ("approverUserId" in (body ?? {})) {
+    const ap = body?.approverUserId;
+    if (ap === null) data.approverUserId = null;
+    else if (typeof ap === "string") {
+      const m = await prisma.membership.findUnique({
+        where: { userId_familyId: { userId: ap, familyId: id } },
+      });
+      if (!m) return NextResponse.json({ error: "APPROVER_NOT_MEMBER" }, { status: 400 });
+      data.approverUserId = ap;
+    }
+  }
   if (typeof body?.name === "string") {
     const name = body.name.trim();
     if (name.length < 2 || name.length > 80)

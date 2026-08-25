@@ -28,6 +28,7 @@ export default function NotifBell() {
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<Notif[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [dnd, setDnd] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchNotifs = useCallback(async () => {
@@ -47,12 +48,19 @@ export default function NotifBell() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/notifications");
-      if (!cancelled && res.ok) {
-        const data = await res.json();
+      const [n, me] = await Promise.all([
+        fetch("/api/notifications"),
+        fetch("/api/me/dnd"),
+      ]);
+      if (!cancelled && n.ok) {
+        const data = await n.json();
         setItems(data.notifications);
         setUnread(data.unread);
         setLoaded(true);
+      }
+      if (!cancelled && me.ok) {
+        const d = await me.json();
+        setDnd(d.dndEnabled);
       }
     })();
     timer.current = setInterval(fetchNotifs, 30000);
@@ -80,7 +88,7 @@ export default function NotifBell() {
         aria-label={t("notifications")}
       >
         🔔
-        {unread > 0 && (
+        {!dnd && unread > 0 && (
           <span className="absolute -top-0.5 -end-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
             {unread > 9 ? "٩+" : unread}
           </span>
@@ -93,6 +101,24 @@ export default function NotifBell() {
           <div className="absolute z-50 mt-2 w-80 max-w-[85vw] rounded-2xl border border-leaf-100 bg-white shadow-2xl end-0">
             <div className="flex items-center justify-between border-b border-leaf-50 px-4 py-2.5">
               <span className="text-sm font-extrabold text-bark-900">🔔 {t("notifications")}</span>
+              <button
+                onClick={async () => {
+                  const next = !dnd;
+                  setDnd(next);
+                  if (next) setUnread(0);
+                  await fetch("/api/me/dnd", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ enabled: next }),
+                  });
+                }}
+                title={dnd ? t("dnd_on") : t("dnd_off")}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition ${
+                  dnd ? "bg-gray-200 text-gray-600" : "bg-leaf-50 text-leaf-700 ring-1 ring-leaf-200"
+                }`}
+              >
+                {dnd ? t("dnd_on") : t("dnd_off")}
+              </button>
               {items.length > 0 && (
                 <button
                   onClick={() => fetch("/api/notifications", { method: "POST" }).then(() => fetchNotifs())}
