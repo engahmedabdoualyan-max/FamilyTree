@@ -8,7 +8,10 @@ type Message = {
   text: string;
   createdAt: string;
   user: { id: string; name: string | null; image: string | null };
+  reactions?: { emoji: string; userId: string }[];
 };
+
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "😮"];
 
 export default function ChatView({
   familyId,
@@ -21,6 +24,7 @@ export default function ChatView({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const lastCount = useRef(0);
@@ -62,6 +66,29 @@ export default function ChatView({
       clearInterval(timer);
     };
   }, [poll, familyId]);
+
+  async function toggleReact(messageId: string, emoji: string) {
+    setMessages((msgs) =>
+      msgs.map((m) => {
+        if (m.id !== messageId || !m.reactions) return m;
+        const mine = m.reactions.find(
+          (r) => r.userId === me.id && r.emoji === emoji
+        );
+        return {
+          ...m,
+          reactions: mine
+            ? m.reactions.filter((r) => !(r.userId === me.id && r.emoji === emoji))
+            : [...m.reactions, { emoji, userId: me.id }],
+        };
+      })
+    );
+    await fetch(`/api/chat/messages/${messageId}/react`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji }),
+    });
+    poll();
+  }
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -118,6 +145,59 @@ export default function ChatView({
                     }`}
                   >
                     {m.text}
+                  </span>
+                  <span className="mt-1 flex flex-wrap items-center gap-1">
+                    {/* existing reactions */}
+                    {(m.reactions ?? []).length > 0 && (
+                      <>
+                        {Object.entries(
+                          (m.reactions ?? []).reduce<Record<string, string[]>>((acc, r) => {
+                            acc[r.emoji] = acc[r.emoji] ? [...acc[r.emoji], r.userId] : [r.userId];
+                            return acc;
+                          }, {})
+                        ).map(([emoji, users]) => (
+                          <button
+                            key={emoji}
+                            onClick={() => toggleReact(m.id, emoji)}
+                            className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ring-1 transition ${
+                              users.includes(me.id)
+                                ? "bg-leaf-100 ring-leaf-300"
+                                : "bg-white/70 text-bark-800 ring-gray-200"
+                            }`}
+                          >
+                            {emoji} {users.length}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {/* add reaction */}
+                    <span className="relative">
+                      <button
+                        onClick={() => setPickerFor(pickerFor === m.id ? null : m.id)}
+                        className="rounded-full px-1.5 py-0.5 text-[11px] text-bark-800/40 hover:bg-leaf-50 hover:text-bark-800"
+                      >
+                        ＋
+                      </button>
+                      {pickerFor === m.id && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setPickerFor(null)} />
+                          <span className="absolute bottom-full z-40 mb-1 flex gap-0.5 rounded-full border border-leaf-100 bg-white p-1 shadow-lg">
+                            {QUICK_EMOJIS.map((e) => (
+                              <button
+                                key={e}
+                                onClick={() => {
+                                  toggleReact(m.id, e);
+                                  setPickerFor(null);
+                                }}
+                                className="rounded-full px-1.5 py-0.5 text-base hover:bg-leaf-50"
+                              >
+                                {e}
+                              </button>
+                            ))}
+                          </span>
+                        </>
+                      )}
+                    </span>
                   </span>
                   <time className={`mt-0.5 block px-1 text-[10px] text-bark-800/40 ${mine ? "text-end" : ""}`}>
                     {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

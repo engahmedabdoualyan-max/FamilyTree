@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMembership } from "@/lib/family";
+import { checkUploadAllowance } from "@/lib/storage";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -63,6 +64,8 @@ export async function POST(req: Request, ctx: Ctx) {
   if (typeof body?.photo === "string" && body.photo.startsWith("data:image/")) {
     if (body.photo.length > 1_500_000)
       return NextResponse.json({ error: "FILE_TOO_LARGE" }, { status: 400 });
+    const storageError = await checkUploadAllowance(id, Math.round(body.photo.length * 0.75));
+    if (storageError) return NextResponse.json({ error: storageError }, { status: 507 });
     photo = body.photo;
   }
   if (title.length < 2) return NextResponse.json({ error: "INVALID" }, { status: 400 });

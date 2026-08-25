@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMembership } from "@/lib/family";
+import { checkUploadAllowance } from "@/lib/storage";
 
 type Ctx = { params: Promise<{ id: string }> };
 const MAX_VOICE = 2_000_000; // ~1.5MB binary
@@ -52,6 +53,9 @@ export async function POST(req: Request, ctx: Ctx) {
   const dataUrl = typeof body?.dataUrl === "string" ? body.dataUrl : "";
   if (!dataUrl.startsWith("data:audio/") || dataUrl.length > MAX_VOICE)
     return NextResponse.json({ error: "TOO_LARGE" }, { status: 400 });
+
+  const storageError = await checkUploadAllowance(person.familyId, Math.round(dataUrl.length * 0.75));
+  if (storageError) return NextResponse.json({ error: storageError }, { status: 507 });
 
   const voice = await prisma.personVoice.create({
     data: {

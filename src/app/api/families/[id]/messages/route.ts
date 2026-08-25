@@ -17,7 +17,10 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const messages = await prisma.chatMessage.findMany({
     where: { familyId: id },
-    include: { user: { select: { id: true, name: true, image: true } } },
+    include: {
+      user: { select: { id: true, name: true, image: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
@@ -39,7 +42,10 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const message = await prisma.chatMessage.create({
     data: { familyId: id, userId, text },
-    include: { user: { select: { id: true, name: true, image: true } } },
+    include: {
+      user: { select: { id: true, name: true, image: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
   });
   return NextResponse.json({ message }, { status: 201 });
 }

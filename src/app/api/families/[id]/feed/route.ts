@@ -105,6 +105,25 @@ export async function GET(_req: Request, ctx: Ctx) {
     topName: topName ? `${topName} ×${topN}` : null,
   };
 
+  // On This Day: photos uploaded on same month/day in PREVIOUS years
+  const nowD = new Date();
+  const mm = String(nowD.getMonth() + 1).padStart(2, "0");
+  const dd = String(nowD.getDate()).padStart(2, "0");
+  const yearStart = `${nowD.getFullYear()}-01-01`;
+  const onThisDayRaw = await prisma.$queryRaw<{ id: string; fileData: string; title: string | null; createdAt: Date }[]>`
+    SELECT id, "fileData", title, "createdAt" FROM "MediaAsset"
+    WHERE "familyId"=${id} AND kind='PHOTO'
+      AND "createdAt" < ${yearStart}::timestamp
+      AND EXTRACT(MONTH FROM "createdAt")=${Number(mm)}
+      AND EXTRACT(DAY FROM "createdAt")=${Number(dd)}
+    ORDER BY "createdAt" DESC LIMIT 6`;
+  const onThisDay = onThisDayRaw.map((m) => ({
+    id: m.id,
+    fileData: m.fileData,
+    title: m.title,
+    year: new Date(m.createdAt).getFullYear(),
+  }));
+
   const now = new Date();
   const thisMonth = now.getMonth() + 1;
   const birthdays = allPersons
@@ -114,6 +133,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   return NextResponse.json({
     stats,
+    onThisDay,
     media: media.map((m) => ({
       id: m.id,
       fileData: m.fileData,

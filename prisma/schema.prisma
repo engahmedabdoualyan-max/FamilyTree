@@ -41,6 +41,7 @@ model User {
   listingClaims     ListingClaim[]
   voicesRecorded    PersonVoice[] @relation("VoiceRecorder")
   mediaViewers      MediaViewer[]
+  chatReactions     ChatReaction[]
 }
 
 model Account {
@@ -188,6 +189,7 @@ model ChatMessage {
   createdAt DateTime @default(now())
   family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions ChatReaction[]
 
   @@index([familyId, createdAt])
 }
@@ -422,6 +424,18 @@ model PersonVoice {
   recordedBy  User     @relation("VoiceRecorder", fields: [createdById], references: [id])
 
   @@index([personId])
+}
+
+model ChatReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
 }
 
 model MediaViewer {

@@ -15,7 +15,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   const membership = await getMembership(id, userId);
   if (!membership) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
-  const [leaderboard, riddles] = await Promise.all([
+  const [leaderboard, riddles, photoKings, riddleGeniuses, firstMember] = await Promise.all([
     prisma.membership.findMany({
       where: { familyId: id },
       orderBy: { points: "desc" },
@@ -31,11 +31,50 @@ export async function GET(_req: Request, ctx: Ctx) {
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
+    prisma.mediaAsset.groupBy({
+      by: ["uploadedById"],
+      where: { familyId: id, kind: "PHOTO" },
+      _count: { uploadedById: true },
+      orderBy: { _count: { uploadedById: "desc" } },
+      take: 1,
+    }),
+    prisma.riddle.groupBy({
+      by: ["solvedById"],
+      where: { familyId: id, solvedById: { not: null } },
+      _count: { solvedById: true },
+      orderBy: { _count: { solvedById: "desc" } },
+      take: 1,
+    }),
+    prisma.membership.findFirst({
+      where: { familyId: id },
+      orderBy: { createdAt: "asc" },
+      include: { user: { select: { id: true, name: true } } },
+    }),
   ]);
+
+  const badges: Record<string, string> = {};
+  if (photoKings[0]?.uploadedById) {
+    const u = await prisma.user.findUnique({
+      where: { id: photoKings[0].uploadedById },
+      select: { name: true },
+    });
+    badges[photoKings[0].uploadedById] = `📸 نجم الصور${u?.name ? ` — ${u.name}` : ""}`;
+  }
+  if (riddleGeniuses[0]?.solvedById) {
+    const u = await prisma.user.findUnique({
+      where: { id: riddleGeniuses[0].solvedById },
+      select: { name: true },
+    });
+    badges[riddleGeniuses[0].solvedById] = `🧩 عبقري الألغاز${u?.name ? ` — ${u.name}` : ""}`;
+  }
+  if (firstMember?.userId) {
+    badges[firstMember.userId] = `👑 أول من انضم${firstMember.user.name ? ` — ${firstMember.user.name}` : ""}`;
+  }
 
   const myRank = leaderboard.findIndex((m) => m.userId === userId) + 1;
 
   return NextResponse.json({
+    badges,
     myPoints: membership.points,
     myRank,
     leaderboard: leaderboard.map((m, i) => ({

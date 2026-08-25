@@ -5,6 +5,7 @@ import { useI18n } from "@/lib/i18n";
 import type { PersonDTO } from "@/lib/tree-data";
 
 type LeaderRow = { userId: string; name: string; image: string | null; points: number; rank: number };
+type BadgeMap = Record<string, string>;
 type Riddle = {
   id: string;
   question: string;
@@ -28,6 +29,7 @@ export default function ClubView({
   const [myRank, setMyRank] = useState(0);
   const [leaderboard, setLeaderboard] = useState<LeaderRow[]>([]);
   const [riddles, setRiddles] = useState<Riddle[]>([]);
+  const [badges, setBadges] = useState<BadgeMap>({});
 
   const loadClub = useCallback(async () => {
     const res = await fetch(`/api/families/${familyId}/club`);
@@ -36,6 +38,7 @@ export default function ClubView({
       setMyPoints(d.myPoints);
       setMyRank(d.myRank);
       setLeaderboard(d.leaderboard);
+      setBadges(d.badges ?? {});
       setRiddles(d.riddles);
     }
   }, [familyId]);
@@ -115,6 +118,16 @@ export default function ClubView({
       )}
 
       {sub === "board" && (
+        <>
+        {Object.keys(badges).length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {Object.entries(badges).map(([uid, label]) => (
+              <span key={uid} className="rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-bark-900 shadow-sm ring-1 ring-amber-200">
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-leaf-100">
           {leaderboard.map((row) => (
             <div
@@ -141,6 +154,7 @@ export default function ClubView({
             </div>
           ))}
         </div>
+        </>
       )}
     </div>
   );
