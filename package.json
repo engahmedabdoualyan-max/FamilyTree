@@ -12,6 +12,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
+    "db:push:prod": "prisma db push --schema prisma/schema.postgres.prisma",
     "db:seed": "tsx prisma/seed.mts"
   },
   "dependencies": {
