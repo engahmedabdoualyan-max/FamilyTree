@@ -1,19 +1,22 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { prepareUpload } from "@/lib/upload-client";
 
 type Pending = { key: string; file: File; previewUrl: string };
+type Member = { userId: string; name: string | null };
 
 export default function UploadModal({
   familyId,
   albumId,
+  me,
   onClose,
   onUploaded,
 }: {
   familyId: string;
   albumId: string;
+  me: { id: string };
   onClose: () => void;
   onUploaded: () => void;
 }) {
@@ -23,6 +26,16 @@ export default function UploadModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [visibility, setVisibility] = useState<"FAMILY" | "PRIVATE" | "CUSTOM">("FAMILY");
+  const [viewers, setViewers] = useState<string[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/families/${familyId}/members`);
+      if (res.ok) setMembers((await res.json()).members);
+    })();
+  }, [familyId]);
 
   function addFiles(files: FileList | null) {
     if (!files) return;
@@ -130,6 +143,52 @@ export default function UploadModal({
             />
           </div>
         )}
+
+        {/* Visibility */}
+        <div className="mt-4">
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-bark-800/50">🔒 مين يشوفها؟</p>
+          <div className="flex gap-1.5">
+            {([
+              ["FAMILY", "👨‍👩‍👧 العيلة كلها"],
+              ["PRIVATE", "🔒 أنا فقط"],
+              ["CUSTOM", "👥 أشخاص محددين"],
+            ] as const).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setVisibility(k)}
+                className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold transition ${
+                  visibility === k ? "border-leaf-600 bg-leaf-600 text-white" : "border-leaf-200 bg-white text-bark-800 hover:bg-leaf-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {visibility === "CUSTOM" && (
+            <div className="scroll-thin mt-2 max-h-32 space-y-1 overflow-y-auto rounded-xl bg-leaf-50/60 p-2">
+              {members
+                .filter((m) => m.userId !== me.id)
+                .map((m) => {
+                  const on = viewers.includes(m.userId);
+                  return (
+                    <button
+                      key={m.userId}
+                      onClick={() =>
+                        setViewers((v) =>
+                          on ? v.filter((x) => x !== m.userId) : [...v, m.userId]
+                        )
+                      }
+                      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-xs font-semibold transition ${
+                        on ? "bg-leaf-600 text-white" : "bg-white hover:bg-leaf-100"
+                      }`}
+                    >
+                      <span>{on ? "☑" : "☐"}</span> {m.name}
+                    </button>
+                  );
+                })}
+            </div>
+          )}
+        </div>
 
         <button
           onClick={uploadAll}

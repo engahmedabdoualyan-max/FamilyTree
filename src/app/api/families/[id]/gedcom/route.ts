@@ -16,8 +16,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   if (!(await getMembership(id, userId))) return new Response("Forbidden", { status: 403 });
 
-  const [family, persons, links] = await Promise.all([
-    prisma.family.findUnique({ where: { id }, select: { name: true } }),
+  const [persons, links] = await Promise.all([
     prisma.person.findMany({ where: { familyId: id, status: "APPROVED" } }),
     prisma.spouseLink.findMany({
       where: { a: { familyId: id } },

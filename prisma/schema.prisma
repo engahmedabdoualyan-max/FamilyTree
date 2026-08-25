@@ -40,6 +40,7 @@ model User {
   listingsCreated   Listing[] @relation("ListingCreator")
   listingClaims     ListingClaim[]
   voicesRecorded    PersonVoice[] @relation("VoiceRecorder")
+  mediaViewers      MediaViewer[]
 }
 
 model Account {
@@ -217,12 +218,14 @@ model MediaAsset {
   caption     String?
   fileData    String
   mime        String      @default("image/jpeg")
+  visibility  String      @default("FAMILY")
   uploadedById String
   createdAt   DateTime    @default(now())
   family      Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
   album       Album?      @relation(fields: [albumId], references: [id], onDelete: SetNull)
   uploadedBy  User        @relation("MediaUploader", fields: [uploadedById], references: [id])
   personTags  PersonTag[]
+  viewers     MediaViewer[]
   comments    MediaComment[]
   likes       MediaLike[]
 
@@ -419,4 +422,15 @@ model PersonVoice {
   recordedBy  User     @relation("VoiceRecorder", fields: [createdById], references: [id])
 
   @@index([personId])
+}
+
+model MediaViewer {
+  id        String   @id @default(cuid())
+  mediaId   String
+  userId    String
+  createdAt DateTime @default(now())
+  media     MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, userId])
 }

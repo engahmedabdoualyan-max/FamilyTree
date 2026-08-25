@@ -24,6 +24,8 @@ type Media = {
   uploadedById: string;
   createdAt: string;
   personIds: string[];
+  visibility?: string;
+  viewerIds?: string[];
   likesCount?: number;
   commentsCount?: number;
   likedByMe?: boolean;
@@ -50,6 +52,15 @@ export default function GalleryView({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
     const [lightbox, setLightbox] = useState<Media | null>(null);
+  const [memberOptions, setMemberOptions] = useState<{ userId: string; name: string | null }[]>([]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    (async () => {
+      const res = await fetch(`/api/families/${familyId}/members`);
+      if (res.ok) setMemberOptions((await res.json()).members);
+    })();
+  }, [lightbox?.id, familyId]); // eslint-disable-line react-hooks/exhaustive-deps
     
   const loadAlbums = useCallback(async () => {
     const res = await fetch(`/api/families/${familyId}/albums`);
@@ -107,7 +118,12 @@ export default function GalleryView({
     await fetch(`/api/media/${lightbox.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caption: lightbox.caption, personIds: lightbox.personIds }),
+      body: JSON.stringify({
+        caption: lightbox.caption,
+        personIds: lightbox.personIds,
+        visibility: lightbox.visibility ?? "FAMILY",
+        viewerIds: lightbox.viewerIds ?? [],
+      }),
     });
     setLightbox(null);
     if (openAlbumId) loadMedia(openAlbumId);
@@ -167,6 +183,12 @@ export default function GalleryView({
                     👤 {m.personIds.length}
                   </span>
                 )}
+                {m.visibility === "PRIVATE" && (
+                  <span className="absolute top-1.5 start-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white">🔒</span>
+                )}
+                {m.visibility === "CUSTOM" && (
+                  <span className="absolute top-1.5 start-1.5 rounded-full bg-sky-500/80 px-2 py-0.5 text-[10px] font-bold text-white">👥</span>
+                )}
               </button>
             ))}
           </div>
@@ -176,6 +198,7 @@ export default function GalleryView({
           <UploadModal
             familyId={familyId}
             albumId={openAlbumId}
+            me={me}
             onClose={() => setUploadOpen(false)}
             onUploaded={() => {
               loadMedia(openAlbumId);
@@ -231,6 +254,63 @@ export default function GalleryView({
                   );
                 })}
               </div>
+
+              {/* Visibility */}
+              {(lightbox.uploadedById === me.id || isAdmin) && (
+                <div className="mt-4">
+                  <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-bark-800/50">🔒 مين يشوفها؟</p>
+                  <div className="flex gap-1.5">
+                    {([
+                      ["FAMILY", "👨‍👩‍👧 الكل"],
+                      ["PRIVATE", "🔒 أنا"],
+                      ["CUSTOM", "👥 محددين"],
+                    ] as const).map(([k, label]) => (
+                      <button
+                        key={k}
+                        onClick={() =>
+                          setLightbox({ ...lightbox, visibility: k, viewerIds: k === "CUSTOM" ? lightbox.viewerIds ?? [] : [] })
+                        }
+                        className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold transition ${
+                          (lightbox.visibility ?? "FAMILY") === k
+                            ? "border-leaf-600 bg-leaf-600 text-white"
+                            : "border-leaf-200 bg-white text-bark-800 hover:bg-leaf-50"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {(lightbox.visibility ?? "FAMILY") === "CUSTOM" && (
+                    <div className="scroll-thin mt-2 max-h-28 space-y-1 overflow-y-auto rounded-xl bg-leaf-50/60 p-2">
+                      {persons.map((p) => {
+                        void p;
+                        return null;
+                      })}
+                      {memberOptions.map((m) => {
+                        const on = lightbox.viewerIds?.includes(m.userId);
+                        return (
+                          <button
+                            key={m.userId}
+                            onClick={() =>
+                              setLightbox({
+                                ...lightbox,
+                                viewerIds: on
+                                  ? (lightbox.viewerIds ?? []).filter((x) => x !== m.userId)
+                                  : [...(lightbox.viewerIds ?? []), m.userId],
+                              })
+                            }
+                            className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-xs font-semibold transition ${
+                              on ? "bg-leaf-600 text-white" : "bg-white hover:bg-leaf-100"
+                            }`}
+                          >
+                            <span>{on ? "☑" : "☐"}</span> {m.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <MediaSocial media={lightbox} />
 

@@ -5,6 +5,21 @@ import { getMembership } from "@/lib/family";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+function canView(
+  m: {
+    uploadedById: string;
+    visibility: string;
+    viewers?: { userId: string }[];
+  },
+  meId: string,
+  isStaff: boolean
+): boolean {
+  if (isStaff || m.uploadedById === meId) return true;
+  if (m.visibility === "FAMILY") return true;
+  if (m.visibility === "PRIVATE") return false;
+  return (m.viewers ?? []).some((v) => v.userId === meId);
+}
+
 const MAX_FILE_LENGTH = 7_000_000; // ~5MB binary as base64
 const KINDS = ["PHOTO", "DOC"];
 const DOC_TYPES = [
@@ -27,8 +42,10 @@ type MediaRow = {
   caption: string | null;
   mime: string;
   uploadedById: string;
+  visibility?: string;
   createdAt: Date;
   personTags?: { personId: string }[];
+  viewers?: { userId: string }[];
   _count?: { likes: number; comments: number };
   likes?: { userId: string }[];
 };
@@ -46,6 +63,8 @@ function mediaDTO(m: MediaRow, meId?: string) {
     uploadedById: m.uploadedById,
     createdAt: m.createdAt,
     personIds: (m.personTags ?? []).map((t) => t.personId),
+    visibility: m.visibility ?? "FAMILY",
+    viewerIds: (m.viewers ?? []).map((v) => v.userId),
     likesCount: m._count?.likes ?? m.likes?.length ?? 0,
     commentsCount: m._count?.comments ?? 0,
     likedByMe: meId ? (m.likes?.some((l) => l.userId === meId) ?? false) : false,
@@ -72,13 +91,16 @@ export async function GET(req: Request, ctx: Ctx) {
       where: { familyId: id, personTags: { some: { personId } } },
       include: {
         personTags: { select: { personId: true } },
+        viewers: { select: { userId: true } },
         _count: { select: { likes: true, comments: true } },
         likes: { where: { userId }, select: { userId: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 500,
     });
-    return NextResponse.json({ media: media.map((m) => mediaDTO(m, userId)) });
+    const isStaff = ["OWNER", "ADMIN"].includes(membership.role);
+    const visible = media.filter((m) => canView(m, userId, isStaff));
+    return NextResponse.json({ media: visible.map((m) => mediaDTO(m, userId)) });
   }
 
   const media = await prisma.mediaAsset.findMany({
@@ -89,13 +111,16 @@ export async function GET(req: Request, ctx: Ctx) {
     },
     include: {
       personTags: { select: { personId: true } },
+      viewers: { select: { userId: true } },
       _count: { select: { likes: true, comments: true } },
       likes: { where: { userId }, select: { userId: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 500,
   });
-  return NextResponse.json({ media: media.map((m) => mediaDTO(m, userId)) });
+  const isStaff = ["OWNER", "ADMIN"].includes(membership.role);
+  const visible = media.filter((m) => canView(m, userId, isStaff));
+  return NextResponse.json({ media: visible.map((m) => mediaDTO(m, userId)) });
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -147,6 +172,19 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: "INVALID_PERSON" }, { status: 400 });
   }
 
+  let visibility = String(body?.visibility ?? "FAMILY").toUpperCase();
+  if (!["FAMILY", "PRIVATE", "CUSTOM"].includes(visibility)) visibility = "FAMILY";
+  const viewerIds = Array.isArray(body?.viewers)
+    ? (body!.viewers as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 50)
+    : [];
+  if (visibility === "CUSTOM" && viewerIds.length) {
+    const validCount = await prisma.membership.count({
+      where: { familyId: id, userId: { in: viewerIds } },
+    });
+    if (validCount !== [...new Set(viewerIds)].length)
+      return NextResponse.json({ error: "INVALID_VIEWER" }, { status: 400 });
+  }
+
   const title = typeof body.title === "string" ? body.title.trim().slice(0, 120) || null : null;
   const caption = typeof body.caption === "string" ? body.caption.trim().slice(0, 300) || null : null;
 
@@ -160,6 +198,10 @@ export async function POST(req: Request, ctx: Ctx) {
       caption,
       fileData,
       mime: isPdf ? "application/pdf" : mime,
+      visibility,
+      ...(visibility === "CUSTOM" && viewerIds.length
+        ? { viewers: { create: [...new Set(viewerIds)].map((uid) => ({ userId: uid })) } }
+        : {}),
       uploadedById: userId,
       ...(personIds.length
         ? { personTags: { create: [...new Set(personIds)].map((pid) => ({ personId: pid })) } }

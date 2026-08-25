@@ -24,6 +24,37 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if ("title" in body) data.title = String(body.title ?? "").trim().slice(0, 120) || null;
   if ("caption" in body) data.caption = String(body.caption ?? "").trim().slice(0, 300) || null;
 
+  // Visibility update
+  if (typeof body.visibility === "string" && ["FAMILY", "PRIVATE", "CUSTOM"].includes(body.visibility.toUpperCase())) {
+    await prisma.mediaAsset.update({
+      where: { id },
+      data: { visibility: body.visibility.toUpperCase() },
+    });
+  }
+
+  if (Array.isArray(body.viewerIds)) {
+    const viewerIds = body.viewerIds
+      .filter((x): x is string => typeof x === "string")
+      .slice(0, 50);
+    const validCount = viewerIds.length
+      ? await prisma.membership.count({
+          where: { familyId: media.familyId, userId: { in: viewerIds } },
+        })
+      : 0;
+    if (validCount !== [...new Set(viewerIds)].length)
+      return NextResponse.json({ error: "INVALID_VIEWER" }, { status: 400 });
+    await prisma.$transaction([
+      prisma.mediaViewer.deleteMany({ where: { mediaId: id } }),
+      ...(viewerIds.length
+        ? [
+            prisma.mediaViewer.createMany({
+              data: [...new Set(viewerIds)].map((uid) => ({ mediaId: id, userId: uid })),
+            }),
+          ]
+        : []),
+    ]);
+  }
+
   // Replace person tags
   if (Array.isArray(body.personIds)) {
     const personIds = body.personIds

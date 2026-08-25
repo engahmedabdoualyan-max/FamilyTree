@@ -48,12 +48,22 @@ export default function DocumentsView({
   const [error, setError] = useState("");
   const [docType, setDocType] = useState<string>("BIRTH_CERT");
   const [docPerson, setDocPerson] = useState<string>("");
+  const [docVisibility, setDocVisibility] = useState<"FAMILY" | "PRIVATE" | "CUSTOM">("FAMILY");
+  const [docViewers, setDocViewers] = useState<string[]>([]);
+  const [members, setMembers] = useState<{ userId: string; name: string | null }[]>([]);
   const [preview, setPreview] = useState<Media | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/families/${familyId}/media?kind=DOC`);
     if (res.ok) setMedia((await res.json()).media);
+  }, [familyId]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/families/${familyId}/members`);
+      if (res.ok) setMembers((await res.json()).members);
+    })();
   }, [familyId]);
 
   useEffect(() => {
@@ -86,6 +96,8 @@ export default function DocumentsView({
             fileData: prepared.dataUrl,
             title: file.name.replace(/\.[^.]+$/, "").slice(0, 100),
             personIds: docPerson ? [docPerson] : [],
+            visibility: docVisibility,
+            viewers: docViewers,
           }),
         });
         if (!res.ok) {
@@ -137,6 +149,40 @@ export default function DocumentsView({
             </option>
           ))}
         </select>
+        <select
+          value={docVisibility}
+          onChange={(e) => setDocVisibility(e.target.value as "FAMILY" | "PRIVATE" | "CUSTOM")}
+          className={inputCls}
+        >
+          <option value="FAMILY">🔒 👨‍👩‍👧 العيلة كلها</option>
+          <option value="PRIVATE">🔒 أنا فقط</option>
+          <option value="CUSTOM">👥 أشخاص محددين</option>
+        </select>
+        {docVisibility === "CUSTOM" && (
+          <div className="scroll-thin flex max-h-28 w-full flex-wrap gap-1.5 overflow-y-auto rounded-xl bg-leaf-50/60 p-2">
+            {members
+              .filter((m) => m.userId !== me.id)
+              .map((m) => {
+                const on = docViewers.includes(m.userId);
+                return (
+                  <button
+                    key={m.userId}
+                    type="button"
+                    onClick={() =>
+                      setDocViewers((v) =>
+                        on ? v.filter((x) => x !== m.userId) : [...v, m.userId]
+                      )
+                    }
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                      on ? "bg-leaf-600 text-white" : "bg-white ring-1 ring-leaf-200 hover:bg-leaf-100"
+                    }`}
+                  >
+                    {on ? "☑" : "☐"} {m.name}
+                  </button>
+                );
+              })}
+          </div>
+        )}
         <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => upload(e.target.files)} />
         <button
           onClick={() => fileRef.current?.click()}

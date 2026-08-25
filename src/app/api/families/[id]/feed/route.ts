@@ -33,7 +33,11 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const [media, newPersons, occasions, allPersons] = await Promise.all([
     prisma.mediaAsset.findMany({
-      where: { familyId: id, kind: "PHOTO" },
+      where: {
+        familyId: id,
+        kind: "PHOTO",
+        OR: [{ visibility: "FAMILY" }, { uploadedById: userId }],
+      },
       include: {
         personTags: { select: { personId: true } },
         _count: { select: { likes: true, comments: true } },
