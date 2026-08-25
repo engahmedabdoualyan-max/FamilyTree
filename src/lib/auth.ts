@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import bcrypt from "bcryptjs";
 import Credentials from "next-auth/providers/credentials";
 import Facebook from "next-auth/providers/facebook";
 import Google from "next-auth/providers/google";
@@ -28,6 +29,28 @@ if (process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET) {
 }
 
 export const demoMode = process.env.DEMO_MODE !== "false";
+
+// Email & password sign-in (built-in accounts)
+const credentialsProvider = Credentials({
+  id: "credentials",
+  name: "Email & Password",
+  credentials: {
+    email: { label: "Email", type: "text" },
+    password: { label: "Password", type: "password" },
+  },
+  async authorize(credentials) {
+    const email = String(credentials?.email ?? "").trim().toLowerCase();
+    const password = String(credentials?.password ?? "");
+    if (!email || !password) return null;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user?.passwordHash) return null;
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return null;
+    return { id: user.id, name: user.name, email: user.email, image: user.image };
+  },
+});
+
+providers.push(credentialsProvider);
 
 // TEMPORARY fallback so the deployment works before AUTH_SECRET is added in
 // the Vercel dashboard. Set a real AUTH_SECRET env var before going public

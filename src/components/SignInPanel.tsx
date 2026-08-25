@@ -5,6 +5,8 @@ import { signIn } from "next-auth/react";
 import { useI18n } from "@/lib/i18n";
 import { TreeLogo } from "./Navbar";
 
+type Mode = "login" | "register";
+
 export default function SignInPanel({
   demoMode,
   providers,
@@ -13,10 +15,58 @@ export default function SignInPanel({
   providers: { google: boolean; facebook: boolean };
 }) {
   const { t } = useI18n();
+  const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const hasOAuth = providers.google || providers.facebook;
+
+  async function submitEmailForm(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      if (mode === "register") {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(mapRegisterError(data.error));
+          setBusy(false);
+          return;
+        }
+      }
+      const res = await signIn("credentials", { email, password, redirect: false });
+      if (res?.error || !res?.url) {
+        setError(t("errWrongCredentials"));
+        setBusy(false);
+      } else {
+        window.location.assign(res.url);
+      }
+    } catch {
+      setError(t("error_generic"));
+      setBusy(false);
+    }
+  }
+
+  function mapRegisterError(code?: string): string {
+    switch (code) {
+      case "ACCOUNT_EXISTS":
+        return t("errAccountExists");
+      case "WEAK_PASSWORD":
+        return t("errWeakPassword");
+      case "INVALID_EMAIL":
+        return t("errInvalidEmail");
+      default:
+        return t("error_generic");
+    }
+  }
 
   async function demoSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +81,9 @@ export default function SignInPanel({
     }
   }
 
+  const inputCls =
+    "w-full rounded-lg border border-leaf-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-leaf-500 focus:ring-2 focus:ring-leaf-200";
+
   return (
     <div className="w-full max-w-md rounded-3xl border border-leaf-100 bg-white p-8 shadow-xl shadow-leaf-900/5">
       <div className="flex flex-col items-center text-center">
@@ -39,69 +92,128 @@ export default function SignInPanel({
         <p className="mt-1 text-sm text-bark-800/70">{t("signin_subtitle")}</p>
       </div>
 
-      <div className="mt-7 space-y-3">
-        {providers.google && (
+      {/* Email & password */}
+      <form onSubmit={submitEmailForm} className="mt-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-bark-800">📧 {t("signin_email_title")}</h2>
           <button
-            onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold text-gray-800 transition hover:bg-gray-50"
+            type="button"
+            onClick={() => {
+              setMode(mode === "login" ? "register" : "login");
+              setError("");
+            }}
+            className="text-xs font-bold text-leaf-700 hover:underline"
           >
-            <GoogleIcon /> {t("signin_google")}
+            {mode === "login" ? t("createAccount") : t("haveAccount") + " " + t("btnLogin")}
           </button>
-        )}
-        {providers.facebook && (
-          <button
-            onClick={() => signIn("facebook", { callbackUrl: "/dashboard" })}
-            className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#1877F2] px-4 py-3 font-semibold text-white transition hover:bg-[#166fe0]"
-          >
-            <FacebookIcon /> {t("signin_facebook")}
-          </button>
-        )}
-      </div>
+        </div>
 
-      {demoMode && (
+        {mode === "register" && (
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("signin_demo_name")}
+            required
+            minLength={2}
+            maxLength={80}
+            className={inputCls}
+          />
+        )}
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={t("signin_demo_email")}
+          type="email"
+          required
+          dir="ltr"
+          autoComplete="email"
+          className={inputCls}
+        />
+        <input
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={t("password")}
+          type="password"
+          required
+          minLength={mode === "register" ? 8 : undefined}
+          dir="ltr"
+          autoComplete={mode === "register" ? "new-password" : "current-password"}
+          className={inputCls}
+        />
+
+        {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
+
+        <button
+          disabled={busy}
+          className="w-full rounded-lg bg-leaf-600 px-4 py-2.5 font-bold text-white transition hover:bg-leaf-700 disabled:opacity-60"
+        >
+          {mode === "login" ? t("btnLogin") : t("btnRegister")}
+        </button>
+      </form>
+
+      {(hasOAuth || demoMode) && (
         <>
-          {(providers.google || providers.facebook) && (
-            <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-bark-800/50">
-              <span className="h-px flex-1 bg-leaf-100" />
-              {t("signin_or")}
-              <span className="h-px flex-1 bg-leaf-100" />
-            </div>
-          )}
-          <div className="rounded-2xl bg-leaf-50 p-4 ring-1 ring-leaf-200">
-            <h2 className="font-bold text-leaf-800">{t("signin_demo_title")}</h2>
-            <p className="mt-0.5 text-xs text-bark-800/70">{t("signin_demo_desc")}</p>
-            <form onSubmit={demoSubmit} className="mt-3 space-y-2.5">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("signin_demo_name")}
-                required
-                className="w-full rounded-lg border border-leaf-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-leaf-500 focus:ring-2 focus:ring-leaf-200"
-              />
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t("signin_demo_email")}
-                type="email"
-                required
-                dir="ltr"
-                className="w-full rounded-lg border border-leaf-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-leaf-500 focus:ring-2 focus:ring-leaf-200"
-              />
-              {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
+          <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-bark-800/50">
+            <span className="h-px flex-1 bg-leaf-100" />
+            {t("signin_or")}
+            <span className="h-px flex-1 bg-leaf-100" />
+          </div>
+          <div className="space-y-3">
+            {providers.google && (
               <button
-                disabled={busy}
-                className="w-full rounded-lg bg-leaf-600 px-4 py-2.5 font-bold text-white transition hover:bg-leaf-700 disabled:opacity-60"
+                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white px-4 py-3 font-semibold text-gray-800 transition hover:bg-gray-50"
               >
-                {t("signin_demo_btn")}
+                <GoogleIcon /> {t("signin_google")}
               </button>
-            </form>
+            )}
+            {providers.facebook && (
+              <button
+                onClick={() => signIn("facebook", { callbackUrl: "/dashboard" })}
+                className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#1877F2] px-4 py-3 font-semibold text-white transition hover:bg-[#166fe0]"
+              >
+                <FacebookIcon /> {t("signin_facebook")}
+              </button>
+            )}
           </div>
         </>
       )}
 
-      {!providers.google && !providers.facebook && !demoMode && (
-        <p className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-          No sign-in methods configured. Set OAuth keys or enable DEMO_MODE.
+      {/* Demo block (local development / preview only) */}
+      {demoMode && (
+        <div className="mt-5 rounded-2xl bg-leaf-50 p-4 ring-1 ring-leaf-200">
+          <h2 className="font-bold text-leaf-800">{t("signin_demo_title")}</h2>
+          <p className="mt-0.5 text-xs text-bark-800/70">{t("signin_demo_desc")}</p>
+          <form onSubmit={demoSubmit} className="mt-3 space-y-2.5">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("signin_demo_name")}
+              required
+              className={inputCls}
+            />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t("signin_demo_email")}
+              type="email"
+              required
+              dir="ltr"
+              className={inputCls}
+            />
+            <button
+              disabled={busy}
+              className="w-full rounded-lg border border-leaf-400 bg-white px-4 py-2 font-bold text-leaf-700 hover:bg-leaf-50 disabled:opacity-60"
+            >
+              {t("signin_demo_btn")}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {!hasOAuth && !demoMode && (
+        <p className="mt-6 rounded-xl bg-amber-50 p-4 text-sm leading-relaxed text-amber-800 ring-1 ring-amber-200">
+          💡 Google & Facebook sign-in will be enabled soon — use email for now.
         </p>
       )}
 
