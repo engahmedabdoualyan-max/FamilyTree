@@ -29,6 +29,12 @@ if (process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET) {
 
 export const demoMode = process.env.DEMO_MODE !== "false";
 
+// TEMPORARY fallback so the deployment works before AUTH_SECRET is added in
+// the Vercel dashboard. Set a real AUTH_SECRET env var before going public
+// (it must differ from this placeholder).
+const authSecret =
+  process.env.AUTH_SECRET ?? "temp-ed91aec5ee62bb80174b65393521e864f2e6acb431d66dae";
+
 if (demoMode) {
   providers.push(
     Credentials({
@@ -59,6 +65,7 @@ if (demoMode) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
+  secret: authSecret,
   session: { strategy: "jwt" },
   trustHost: true,
   pages: { signIn: "/signin" },
