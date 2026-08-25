@@ -52,14 +52,28 @@ If a provider's keys are missing, its button simply doesn't appear.
 
 ## Deploying to Vercel
 
-1. Push this repo to GitHub
-2. Import it in Vercel
-3. Add environment variables:
-   - `DATABASE_URL` — your hosted Postgres connection string (Supabase/Neon/etc). The app auto-detects Postgres.
-   - `AUTH_SECRET` (`npx auth secret`)
-   - OAuth keys + callback URLs updated to your domain
-   - `DEMO_MODE=false`
-4. Run `npx prisma db push` once against the production DB (locally with the prod `DATABASE_URL`) to create tables
+The repo is Vercel-ready (`vercel.json`, `postinstall` prisma generate, lazy DB client,
+native packages marked external). Steps:
+
+1. Push this repo to GitHub, then import it in Vercel
+2. Add environment variables in Vercel → Settings → Environment Variables:
+
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | hosted Postgres connection string (Supabase / Neon / …) |
+   | `AUTH_SECRET` | run `npx auth secret` locally and paste the value |
+   | `DEMO_MODE` | `false` |
+   | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | from Google Cloud Console |
+   | `AUTH_FACEBOOK_ID` / `AUTH_FACEBOOK_SECRET` | from Facebook Developers |
+
+3. Update OAuth callback URLs to your production domain:
+   - Google: `https://YOUR_DOMAIN/api/auth/callback/google`
+   - Facebook: `https://YOUR_DOMAIN/api/auth/callback/facebook`
+4. Create the tables once against the production database:
+   ```bash
+   DATABASE_URL="postgres://…" npx prisma db push
+   ```
+5. Deploy — the app detects Postgres automatically from the connection string
 
 ## Scripts
 
