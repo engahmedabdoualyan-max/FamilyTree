@@ -9,6 +9,7 @@ import PersonForm, {
   type PersonFormValues,
 } from "./PersonForm";
 import CommentsSection from "./CommentsSection";
+import MediaThumbs from "./MediaThumbs";
 import { Avatar } from "./TreeCanvas";
 
 export type AddRelation =
@@ -335,6 +336,10 @@ function ViewPanel({
                   })()}
               </div>
             </section>
+
+            {person.familyId && (
+              <MediaThumbs familyId={person.familyId} personId={person.id} />
+            )}
 
             {/* Actions */}
             <div className="flex items-center justify-between gap-3 border-t border-leaf-100 pt-4">
