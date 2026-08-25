@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String?      @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  memberships   Membership[]
+  families      Family[]     @relation("FamilyCreator")
+  comments      Comment[]
+  personsAdded  Person[]     @relation("PersonCreator")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Family {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  photo       String?
+  inviteCode  String       @unique
+  createdAt   DateTime     @default(now())
+  createdById String
+  createdBy   User         @relation("FamilyCreator", fields: [createdById], references: [id])
+  memberships Membership[]
+  persons     Person[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  familyId  String
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, familyId])
+}
+
+model Person {
+  id          String   @id @default(cuid())
+  familyId    String
+  firstName   String
+  lastName    String?
+  nickname    String?
+  gender      String
+  photo       String?
+  birthDate   String?
+  deathDate   String?
+  birthPlace  String?
+  occupation  String?
+  bio         String?
+  isDeceased  Boolean  @default(false)
+  isRoot      Boolean  @default(false)
+  fatherId    String?
+  motherId    String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("PersonCreator", fields: [createdById], references: [id])
+  father      Person?  @relation("FatherChildren", fields: [fatherId], references: [id], onDelete: SetNull)
+  mother      Person?  @relation("MotherChildren", fields: [motherId], references: [id], onDelete: SetNull)
+  childrenAsFather Person[] @relation("FatherChildren")
+  childrenAsMother Person[] @relation("MotherChildren")
+  spouseLinksA SpouseLink[] @relation("SpouseA")
+  spouseLinksB SpouseLink[] @relation("SpouseB")
+  comments    Comment[]
+
+  @@index([familyId])
+  @@index([fatherId])
+  @@index([motherId])
+}
+
+model SpouseLink {
+  id        String   @id @default(cuid())
+  aId       String
+  bId       String
+  status    String   @default("MARRIED")
+  createdAt DateTime @default(now())
+  a         Person   @relation("SpouseA", fields: [aId], references: [id], onDelete: Cascade)
+  b         Person   @relation("SpouseB", fields: [bId], references: [id], onDelete: Cascade)
+
+  @@unique([aId, bId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  personId  String
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+}

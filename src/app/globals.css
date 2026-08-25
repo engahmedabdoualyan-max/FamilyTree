@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-leaf-50: #f0faf4;
+  --color-leaf-100: #dcf2e4;
+  --color-leaf-200: #b9e5cc;
+  --color-leaf-300: #8ad1ab;
+  --color-leaf-400: #55b685;
+  --color-leaf-500: #349c69;
+  --color-leaf-600: #257d53;
+  --color-leaf-700: #1f6445;
+  --color-leaf-800: #1c5038;
+  --color-leaf-900: #184330;
+  --color-bark-800: #4a3728;
+  --color-bark-900: #33261b;
+}
+
+:root {
+  --font-arabic: "Cairo", "Segoe UI", Tahoma, sans-serif;
+}
+
+html.font-arabic body {
+  font-family: var(--font-arabic);
+}
+
+body {
+  background: linear-gradient(180deg, #f7faf7 0%, #eef5ee 100%);
+  min-height: 100vh;
+}
+
+/* thin scrollbars for panels */
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #cbd5cd;
+  border-radius: 999px;
+}
+
+.tree-canvas {
+  cursor: grab;
+  touch-action: none;
+}
+.tree-canvas.dragging {
+  cursor: grabbing;
+}
+
+.person-card {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.person-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(31, 100, 69, 0.18);
+}
